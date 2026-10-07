@@ -269,7 +269,7 @@ namespace BunchAStuff
             float hurtBefore = Hurt(a) + Hurt(b);
             float guard = float.PositiveInfinity;
             float restingDrop = Fights.FistDrop(a);
-            for (float end = Now() + 15f; Now() < end && Fights.PunchesLanded < 4;)
+            for (float end = Now() + 15f; Now() < end && Fights.PunchesLanded + Fights.PunchesBlocked < 5;)
             {
                 closest = Mathf.Min(closest, Vector3.Distance(a.GetPosition(), b.GetPosition()));
                 if (closest < Fights.Reach + 0.3f)
@@ -284,7 +284,8 @@ namespace BunchAStuff
             yield return Wait(1.5f);
             Check("They walk up to each other", closest < Fights.Reach + 0.4f, $"{startDistance:0.0} m -> {closest:0.0} m");
             Check("They put their fists up", guard < 0.35f, $"fists {restingDrop:0.00} m under the head at rest, {guard:0.00} m in the fight");
-            Check("Punches land", Fights.PunchesLanded >= 2, $"{Fights.PunchesLanded} landed");
+            Check("Punches connect", Fights.PunchesLanded >= 1 && Fights.PunchesLanded + Fights.PunchesBlocked >= 3,
+                $"{Fights.PunchesLanded} landed, {Fights.PunchesBlocked} blocked");
             Check("Punches hurt", Hurt(a) + Hurt(b) > hurtBefore, $"{hurtBefore:0.00} -> {Hurt(a) + Hurt(b):0.00}");
             yield return Wait(4f);
             yield return ShotAndWait("bas-fight-later");

@@ -86,6 +86,9 @@ namespace BunchAStuff
         /// <summary>Punches that landed, all fights together (for the self-test).</summary>
         internal static int PunchesLanded { get; private set; }
 
+        /// <summary>Punches caught on someone's guard, all fights together (for the self-test).</summary>
+        internal static int PunchesBlocked { get; private set; }
+
         internal static void Create()
         {
             ContextMenus.AddAction(ContextMenuTarget.Limb,
@@ -299,7 +302,14 @@ namespace BunchAStuff
                 return;
             var none = new Il2CppSystem.Nullable<Vector3>(Vector3.zero) { hasValue = false };
             var noRotation = new Il2CppSystem.Nullable<Quaternion>(Quaternion.identity) { hasValue = false };
-            placer.SetLocalPosition(local, frame, speed, smooth, none, noRotation, null);
+            try
+            {
+                placer.SetLocalPosition(local, frame, speed, smooth, none, noRotation, null);
+            }
+            catch
+            {
+                // That hand has been cut off or the body is coming apart: the other arm carries on.
+            }
         }
 
         private static void RaiseGuard(Fighter fighter, float speed)
@@ -452,6 +462,7 @@ namespace BunchAStuff
             {
                 // Caught on the guard.
                 fighter.Blocked++;
+                PunchesBlocked++;
                 Sounds.Play(ImpactSFXType.RbHit, contact, 0.5f);
                 return;
             }
@@ -473,6 +484,7 @@ namespace BunchAStuff
             }
             Fighters.Clear();
             PunchesLanded = 0;
+            PunchesBlocked = 0;
         }
     }
 }
