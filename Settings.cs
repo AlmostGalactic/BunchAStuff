@@ -19,6 +19,7 @@ namespace BunchAStuff
         private static MelonPreferences_Entry<bool> _fightBack;
         private static MelonPreferences_Entry<bool> _showTeamTags;
         private static MelonPreferences_Entry<string> _customTeams;
+        private static MelonPreferences_Entry<bool> _teamsSeeded;
 
         internal static void Create()
         {
@@ -34,7 +35,8 @@ namespace BunchAStuff
             _showTeamTags = _prefs.CreateEntry("ShowTeamTags", true, "Show team names",
                 "Show each person's team over their head.");
             // Teams the player made, as "Name|RRGGBB;Name|RRGGBB". Edited on the mod's page, not here.
-            _customTeams = _prefs.CreateEntry("CustomTeams", string.Empty, "Custom teams", null, is_hidden: true);
+            _customTeams = _prefs.CreateEntry("CustomTeams", string.Empty, "Teams", null, is_hidden: true);
+            _teamsSeeded = _prefs.CreateEntry("TeamsSeeded", false, "Teams made", null, is_hidden: true);
             ModMenu.AddPreferencesPage(_prefs);
         }
 
@@ -44,7 +46,7 @@ namespace BunchAStuff
         internal static bool FightBack => _fightBack.Value;
         internal static bool ShowTeamTags => _showTeamTags.Value;
 
-        internal static IEnumerable<(string Name, Color Color)> LoadCustomTeams()
+        internal static IEnumerable<(string Name, Color Color)> LoadTeams()
         {
             foreach (var part in (_customTeams.Value ?? string.Empty).Split(';', StringSplitOptions.RemoveEmptyEntries))
             {
@@ -55,8 +57,12 @@ namespace BunchAStuff
             }
         }
 
-        internal static void SaveCustomTeams(IEnumerable<(string Name, Color Color)> teams)
+        /// <summary>False until the four starting teams have been made once.</summary>
+        internal static bool TeamsSeeded => _teamsSeeded.Value;
+
+        internal static void SaveTeams(IEnumerable<(string Name, Color Color)> teams)
         {
+            _teamsSeeded.Value = true;
             _customTeams.Value = string.Join(";", teams.Select(t => t.Name.Replace(";", "").Replace("|", "") + "|" + ColorUtility.ToHtmlStringRGB(t.Color)));
             _prefs.SaveToFile(false);
         }

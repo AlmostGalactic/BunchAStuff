@@ -37,11 +37,11 @@ and **Stop all fights**.
 
 ## Teams
 
-Right-click a person and open **Team** to put them on Red, Blue, Green or Yellow. Teammates never fight or hit each
+Right-click a person and open **Team** to put them on one of your teams. You start with Red, Blue, Green and Yellow. Teammates never fight or hit each
 other, and each person's team shows over their head.
 
-On the mod's page in the mod menu you can make your own teams (a name and a colour), delete them, split everyone
-into Red and Blue, or take everyone off their teams. Teams you make are saved.
+On the mod's page in the mod menu you can make teams (a name and a colour), delete any of them, split everyone
+between all the teams as evenly as possible, or take everyone off their teams. Your list of teams is saved.
 
 ## Settings
 

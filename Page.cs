@@ -42,19 +42,24 @@ namespace BunchAStuff
 
                 .Header("Teams")
                 .Label("Teammates never fight or hit each other. Right-click someone and open Team to pick theirs.")
-                .Button("Split everyone into Red and Blue", () =>
+                .Button("Split everyone into teams", () =>
                 {
-                    if (GameState.InSandbox)
-                        Notifications.Show($"{Teams.SplitEveryone()} people split into Red and Blue.");
-                })
+                    if (!GameState.InSandbox)
+                        return;
+                    if (Teams.All.Count == 0)
+                    {
+                        Notifications.Warn("Make a team first.");
+                        return;
+                    }
+                    Notifications.Show($"{Teams.SplitEveryone()} people split between {Teams.All.Count} teams.");
+                }).WithTooltip("Deals everyone out between all the teams, as evenly as it can.")
                 .Button("Take everyone off their teams", Teams.ClearMembers);
 
             foreach (var team in Teams.All)
             {
                 var t = team;
-                _page.Label(() => $"{t.Name}: {Count(t)}{(t.BuiltIn ? "" : "  (yours)")}");
-                if (!t.BuiltIn)
-                    _page.Button($"Delete {t.Name}", () => Teams.Remove(t));
+                _page.Label(() => $"{t.Name}: {Count(t)}");
+                _page.Button($"Delete {t.Name}", () => Teams.Remove(t));
             }
 
             _page.Header("Make a team")

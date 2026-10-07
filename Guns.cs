@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.Linq;
 using FruktSharedLibrary.Combat;
@@ -43,7 +43,7 @@ namespace BunchAStuff
                 "Rail rifle. A 7.62 round at several times the speed, through everything in a line.", ("caliber", "7.62"), ("fire", "single"));
 
             Launcher = Add("Tusk-40", 1.3f, false, GunModels.LauncherMuzzle, FireLauncher, GunModels.Launcher(), new Vector3(0.1f, -0.13f, 0.32f), 0.9f,
-                "Rocket launcher. The rocket explodes on impact.", ("fire", "single"), ("blast radius", "3.5 m"));
+                "Rocket launcher. The rocket explodes on impact.", ("fire", "single"), ("blast radius", "4.5 m"));
 
             AirCannon = Add("Gale-2", 0.6f, false, GunModels.AirCannonMuzzle, FireAirCannon, GunModels.AirCannon(), new Vector3(0f, 0f, 0.12f), 0.75f,
                 "Air cannon. Throws whatever it hits without damaging it.", ("fire", "single"));
@@ -187,6 +187,25 @@ namespace BunchAStuff
 
         // ------------------------------------------------------------ rockets
 
+        private const float BlastRadius = 4.5f;
+
+        /// <summary>The blast: wounds, shoves and throws people, and the fire and smoke.</summary>
+        internal static void Detonate(Vector3 at)
+        {
+            Damage.Explosion(at, BlastRadius, force: 160f, maxRadiusVoxels: 16, strength: Settings.ExplosionDamage * 2f);
+            // Whole bodies get thrown, not just the limbs nearest the blast.
+            foreach (var creature in Creatures.Living.ToList())
+            {
+                var offset = creature.GetPosition() - at;
+                float falloff = 1f - offset.magnitude / (BlastRadius * 1.6f);
+                if (falloff <= 0f)
+                    continue;
+                var away = (offset.sqrMagnitude > 0.01f ? offset.normalized : Vector3.up) + Vector3.up * 0.7f;
+                creature.AddForce(away.normalized * 14f * falloff, ForceMode.VelocityChange);
+            }
+            Effects.Explosion(at, BlastRadius);
+        }
+
         private sealed class Rocket
         {
             private const float Speed = 32f;
@@ -245,8 +264,7 @@ namespace BunchAStuff
             private void Explode(Vector3 at)
             {
                 Object.Destroy(_body);
-                Damage.Explosion(at, 3.5f, force: 45f, maxRadiusVoxels: 6, strength: Settings.ExplosionDamage);
-                Effects.Explosion(at, 3.5f);
+                Detonate(at);
                 Sounds.Play(ImpactSFXType.Bullet12gaHardSurface, at);
                 Sounds.Play(WeaponSFXType.Shoot12ga, at);
                 Exploded?.Invoke(at);

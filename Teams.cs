@@ -14,21 +14,20 @@ namespace BunchAStuff
     {
         internal string Name { get; }
         internal Color Color { get; }
-        internal bool BuiltIn { get; }
 
-        internal Team(string name, Color color, bool builtIn)
+        internal Team(string name, Color color)
         {
             Name = name;
             Color = color;
-            BuiltIn = builtIn;
         }
 
         public override string ToString() => Name;
     }
 
     /// <summary>
-    /// Teams for people. Teammates never fight each other and never hit each other. There are four teams to
-    /// start with, and players can make their own on the mod's page; those are saved.
+    /// Teams for people. Teammates never fight each other and never hit each other. The first time the mod runs it
+    /// makes four teams, and after that the player makes and deletes teams as they like on the mod's page. The list
+    /// is saved.
     /// </summary>
     internal static class Teams
     {
@@ -64,15 +63,18 @@ namespace BunchAStuff
 
         internal static void Create()
         {
-            TeamList.Add(new Team("Red", Colours[0].Color, true));
-            TeamList.Add(new Team("Blue", Colours[1].Color, true));
-            TeamList.Add(new Team("Green", Colours[2].Color, true));
-            TeamList.Add(new Team("Yellow", Colours[3].Color, true));
-            foreach (var (name, color) in Settings.LoadCustomTeams())
+            if (!Settings.TeamsSeeded)
+            {
+                for (int i = 0; i < 4; i++)
+                    TeamList.Add(new Team(char.ToUpperInvariant(Colours[i].Name[0]) + Colours[i].Name.Substring(1), Colours[i].Color));
+            }
+            foreach (var (name, color) in Settings.LoadTeams())
             {
                 if (Find(name) == null)
-                    TeamList.Add(new Team(name, color, false));
+                    TeamList.Add(new Team(name, color));
             }
+            if (!Settings.TeamsSeeded)
+                Settings.SaveTeams(TeamList.Select(t => (t.Name, t.Color)));
             BuildMenu();
         }
 
@@ -87,16 +89,16 @@ namespace BunchAStuff
                 : null;
             if (why != null)
                 return null;
-            var team = new Team(name, color, false);
+            var team = new Team(name, color);
             TeamList.Add(team);
             SaveAndRefresh();
             return team;
         }
 
-        /// <summary>Deletes a team the player made. Its people are left without a team.</summary>
+        /// <summary>Deletes a team. Its people are left without one.</summary>
         internal static bool Remove(Team team)
         {
-            if (team == null || team.BuiltIn || !TeamList.Remove(team))
+            if (team == null || !TeamList.Remove(team))
                 return false;
             foreach (var key in Members.Where(m => m.Value.Team == team).Select(m => m.Key).ToList())
                 Leave(key);
@@ -143,13 +145,18 @@ namespace BunchAStuff
             return Members.Values.Where(m => m.Team == team).Select(m => m.Creature).ToList();
         }
 
-        /// <summary>Splits every living person between Red and Blue, alternating from one side of the map to the other.</summary>
+        /// <summary>Splits every living person between all the teams, as evenly as it can.</summary>
         internal static int SplitEveryone()
         {
+            if (TeamList.Count == 0)
+                return 0;
             var people = Creatures.Humans.Select(h => (AbstractCreature)h).Where(h => h.IsLiving())
-                .OrderBy(h => h.GetPosition().x).ToList();
+                .OrderBy(_ => UnityEngine.Random.value).ToList();
+            // Dealt out like cards, so the teams end up as even as they can be: no team has more than one extra.
+            // The teams are shuffled too, so the extra people don't always land on the first teams.
+            var order = TeamList.OrderBy(_ => UnityEngine.Random.value).ToList();
             for (int i = 0; i < people.Count; i++)
-                Put(people[i], TeamList[i % 2]);
+                Put(people[i], order[i % order.Count]);
             Changed?.Invoke();
             return people.Count;
         }
@@ -205,7 +212,7 @@ namespace BunchAStuff
 
         private static void SaveAndRefresh()
         {
-            Settings.SaveCustomTeams(TeamList.Where(t => !t.BuiltIn).Select(t => (t.Name, t.Color)));
+            Settings.SaveTeams(TeamList.Select(t => (t.Name, t.Color)));
             BuildMenu();
             Changed?.Invoke();
         }

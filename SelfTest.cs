@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections;
 using System.Collections.Generic;
 using System.IO;
@@ -204,6 +204,24 @@ namespace BunchAStuff
             Check("The blast hurts the dummy", Hurt(dummy) > before, $"{before:0.00} -> {Hurt(dummy):0.00}");
             dummy.Delete();
 
+            // A blast next to someone standing free wounds them and throws them.
+            AbstractCreature standing = null;
+            foreach (var step in SpawnHuman(LocalPlayer.GetPointInFront(6f), c => standing = c))
+                yield return step;
+            Check("Someone stands for the blast", standing != null);
+            if (standing != null)
+            {
+                yield return Wait(1f);
+                var from = standing.GetPosition();
+                float hurtBefore = Hurt(standing);
+                Guns.Detonate(from + new Vector3(1.5f, 0f, 0f));
+                yield return Wait(0.8f);
+                float moved = Vector3.Distance(from, standing.GetPosition());
+                Check("A blast beside someone throws them", moved > 2f, $"{moved:0.0} m");
+                Check("A blast beside someone wounds them", Hurt(standing) > hurtBefore + 1f, $"{hurtBefore:0.0} -> {Hurt(standing):0.0}");
+                standing.Delete();
+            }
+
             // The Gale-2 throws a crate; the Halt-1 stops one and lets it go.
             var cube = GameObject.CreatePrimitive(PrimitiveType.Cube);
             var crate = Spawner.SpawnMesh(cube.GetComponent<MeshFilter>().sharedMesh, LocalPlayer.CameraPosition + LocalPlayer.Forward * 4f, mass: 20f);
@@ -358,14 +376,17 @@ namespace BunchAStuff
             Check("A new team can be made", made != null && made.Name == "Test Squad" && Teams.All.Contains(made), why);
             Check("Team names can't be used twice", Teams.Add("test squad", Color.white, out why) == null && why != null, why);
             Check("Teams need a name", Teams.Add("   ", Color.white, out why) == null, why);
-            Check("Made teams are saved", Settings.LoadCustomTeams().Any(t => t.Name == "Test Squad"));
+            Check("Made teams are saved", Settings.LoadTeams().Any(t => t.Name == "Test Squad"));
             Teams.Join(a, made);
             Check("People can join a made team", Teams.Of(a) == made && Teams.MembersOf(made).Count == 1);
             Check("A made team can be deleted", Teams.Remove(made) && Teams.Find("Test Squad") == null && Teams.Of(a) == null);
-            Check("Deleting it takes it out of the save", !Settings.LoadCustomTeams().Any(t => t.Name == "Test Squad"));
-            Check("The starting teams can't be deleted", !Teams.Remove(red) && Teams.Find("Red") != null);
+            Check("Deleting it takes it out of the save", !Settings.LoadTeams().Any(t => t.Name == "Test Squad"));
+            Check("Any team can be deleted, even the four it starts with", Teams.Remove(red) && Teams.Find("Red") == null && !Settings.LoadTeams().Any(t => t.Name == "Red"));
+            Teams.Add("Red", Teams.Colours[0].Color, out _);
 
-            Check("Split everyone puts two people on Red and Blue", Teams.SplitEveryone() == 2 && Teams.Of(a) != Teams.Of(b) && Teams.Of(a) != null);
+            Check("Split everyone puts two people on different teams", Teams.SplitEveryone() == 2 && Teams.Of(a) != Teams.Of(b) && Teams.Of(a) != null);
+            var sizes = Teams.All.Select(t => Teams.MembersOf(t).Count).ToList();
+            Check("The split is as even as it can be", sizes.Max() - sizes.Min() <= 1, string.Join(", ", sizes));
             Check("Everyone fights starts both", Fights.EveryoneFights() == 2 && Fights.Count == 2);
             yield return Wait(4f);
             yield return ShotAndWait("bas-team-fight");
