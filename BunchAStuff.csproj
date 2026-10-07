@@ -1,0 +1,41 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>net6.0</TargetFramework>
+    <PlatformTarget>x64</PlatformTarget>
+    <LangVersion>latest</LangVersion>
+    <Nullable>disable</Nullable>
+    <ImplicitUsings>disable</ImplicitUsings>
+    <!-- Keep in step with Main.Version. -->
+    <Version>0.1.0</Version>
+    <!-- Where FRUKT is installed. The FRUKT_DIR environment variable wins, so the project builds on other
+         computers without editing this file. -->
+    <FruktGameDir Condition="'$(FruktGameDir)' == '' And '$(FRUKT_DIR)' != ''">$(FRUKT_DIR)</FruktGameDir>
+    <FruktGameDir Condition="'$(FruktGameDir)' == ''">D:\SteamLibrary\steamapps\common\FRUKT</FruktGameDir>
+    <!-- Copy the built mod into FRUKT\Mods. Build with -p:CopyToGameMods=false to skip it. -->
+    <CopyToGameMods Condition="'$(CopyToGameMods)' == ''">true</CopyToGameMods>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <Reference Include="$(FruktGameDir)\Mods\FruktSharedLibrary.dll" Private="false" />
+    <Reference Include="$(FruktGameDir)\MelonLoader\net6\MelonLoader.dll" Private="false" />
+    <Reference Include="$(FruktGameDir)\MelonLoader\net6\0Harmony.dll" Private="false" />
+    <Reference Include="$(FruktGameDir)\MelonLoader\net6\Il2CppInterop.Runtime.dll" Private="false" />
+    <Reference Include="$(FruktGameDir)\MelonLoader\net6\Il2CppInterop.Common.dll" Private="false" />
+    <!-- Every game and Unity assembly, so you never have to hunt for the one a type lives in. -->
+    <Reference Include="$(FruktGameDir)\MelonLoader\Il2CppAssemblies\*.dll" Private="false" />
+  </ItemGroup>
+
+  <Target Name="CheckFruktGameDir" BeforeTargets="ResolveAssemblyReferences">
+    <Error Condition="!Exists('$(FruktGameDir)\MelonLoader\Il2CppAssemblies')"
+           Text="Can't find FRUKT with MelonLoader at '$(FruktGameDir)'. Set FruktGameDir in $(MSBuildProjectFile), or the FRUKT_DIR environment variable, to the game's folder. If MelonLoader is installed, start the game once so it makes MelonLoader\Il2CppAssemblies." />
+    <Error Condition="!Exists('$(FruktGameDir)\Mods\FruktSharedLibrary.dll')"
+           Text="FruktSharedLibrary.dll isn't in '$(FruktGameDir)\Mods'. Download it from https://github.com/AlmostGalactic/FruktSharedLibrary/releases and put it there." />
+  </Target>
+
+  <Target Name="CopyModToGame" AfterTargets="Build" Condition="'$(CopyToGameMods)' == 'true'">
+    <Copy SourceFiles="$(TargetPath)" DestinationFolder="$(FruktGameDir)\Mods" SkipUnchangedFiles="true" />
+    <Message Importance="high" Text="$(MSBuildProjectName) -> $(FruktGameDir)\Mods" />
+  </Target>
+
+</Project>
