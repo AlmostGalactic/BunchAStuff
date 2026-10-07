@@ -13,7 +13,7 @@ namespace BunchAStuff
     internal static class Settings
     {
         private static MelonPreferences_Category _prefs;
-        private static MelonPreferences_Entry<float> _gunDamage;
+        private static MelonPreferences_Entry<float> _explosionDamage;
         private static MelonPreferences_Entry<float> _punchDamage;
         private static MelonPreferences_Entry<float> _punchForce;
         private static MelonPreferences_Entry<bool> _fightBack;
@@ -23,8 +23,8 @@ namespace BunchAStuff
         internal static void Create()
         {
             _prefs = MelonPreferences.CreateCategory("BunchAStuff", "Bunch-A-Stuff! settings");
-            _gunDamage = _prefs.CreateEntry("GunDamage", 1f, "Gun damage",
-                "How much the guns hurt. Below 1 they only bruise, above 1 they tear more away.", false, false, new ValueRange<float>(0.1f, 3f));
+            _explosionDamage = _prefs.CreateEntry("ExplosionDamage", 1f, "Explosion damage",
+                "How much the Tusk-40's blast hurts. Below 1 it only bruises, above 1 it tears more away.", false, false, new ValueRange<float>(0.1f, 3f));
             _punchDamage = _prefs.CreateEntry("PunchDamage", 0.35f, "Punch damage",
                 "How much each punch hurts in a fist fight.", false, false, new ValueRange<float>(0f, 1f));
             _punchForce = _prefs.CreateEntry("PunchForce", 18f, "Punch force",
@@ -38,7 +38,7 @@ namespace BunchAStuff
             ModMenu.AddPreferencesPage(_prefs);
         }
 
-        internal static float GunDamage => _gunDamage.Value;
+        internal static float ExplosionDamage => _explosionDamage.Value;
         internal static float PunchDamage => _punchDamage.Value;
         internal static float PunchForce => _punchForce.Value;
         internal static bool FightBack => _fightBack.Value;

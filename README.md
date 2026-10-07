@@ -2,28 +2,28 @@
 
 A bunch of stuff for FRUKT: six guns, fist fights, and teams.
 
-Requires [FruktSharedLibrary](https://github.com/AlmostGalactic/FruktSharedLibrary) 0.3.0 or newer.
+Requires [FruktSharedLibrary](https://github.com/AlmostGalactic/FruktSharedLibrary) 0.3.1 or newer.
 
 ## Installing
 
 1. Install [MelonLoader](https://melonwiki.xyz/) 0.7 or newer for FRUKT.
-2. Put `FruktSharedLibrary.dll` (0.3.0 or newer) in `FRUKT/Mods`.
+2. Put `FruktSharedLibrary.dll` (0.3.1 or newer) in `FRUKT/Mods`.
 3. Put `BunchAStuff.dll` in `FRUKT/Mods`.
 
 ## Guns
 
-They're under Weapons in the terminal (I). Left click fires.
+They're under Weapons in the terminal (I). Left click fires. The bullets are the game's own, so they wound the way
+the Viper-17 and Grist-03 do: through the body, with blood, and out the other side. The models are made of voxels
+at the same size as the game's guns.
 
 | Gun | What it is |
 |-----|------------|
-| Moth-9 | Submachine gun. Fires while the button is held. |
-| Barrow-12 | Pump shotgun, nine pellets a shot. |
-| Heron-R | Rail rifle. Goes through up to eight bodies or loose objects in a line. |
-| Tusk-40 | Rocket launcher. The rocket explodes on impact. |
+| Moth-9 | Submachine gun, 9mm. Fires while the button is held. |
+| Barrow-12 | Pump shotgun, nine 12-gauge pellets a shot. |
+| Heron-R | Rail rifle. A 7.62 round at several times the speed, through everything in a line. |
+| Tusk-40 | Rocket launcher. The rocket leaves a trail and explodes on impact. |
 | Gale-2 | Air cannon. Throws whatever it hits without hurting it. |
 | Halt-1 | Holds whatever it hits still in mid-air. Hit it again to let go. |
-
-The models are placeholders for now.
 
 ## Fights
 
@@ -45,7 +45,7 @@ into Red and Blue, or take everyone off their teams. Teams you make are saved.
 
 ## Settings
 
-The Bunch-A-Stuff! settings page in the mod menu has gun damage, punch damage and force, whether people fight back,
+The Bunch-A-Stuff! settings page in the mod menu has explosion damage, punch damage and force, whether people fight back,
 and whether team names show.
 
 ## Testing

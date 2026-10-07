@@ -63,6 +63,7 @@ namespace BunchAStuff
             public int Combo;
             public float PunchStarted = -10f;
             public bool Connected;
+            public bool GuardDecided, Slipped;
             public bool Guarding;
             public Transform Frame;
             public bool GuardUp;
@@ -378,6 +379,8 @@ namespace BunchAStuff
             fighter.Aim = aim;
             fighter.PunchStarted = Time.time;
             fighter.Connected = false;
+            fighter.GuardDecided = false;
+            fighter.Slipped = false;
             fighter.Struck = false;
             fighter.Punches++;
 
@@ -442,28 +445,49 @@ namespace BunchAStuff
             if (fighter.Connected || Teams.AreAllies(fighter.Me, target))
                 return;
             var fistAt = fist.GetPosition();
-            AbstractLimb struck = null;
-            Vector3 contact = default;
+            AbstractLimb struck = null, guard = null;
+            Vector3 contact = default, guardContact = default;
             foreach (var collider in Physics.OverlapSphere(fistAt, 0.13f, Physics.AllLayers, QueryTriggerInteraction.Ignore))
             {
                 var limb = Creatures.LimbFromCollider(collider);
                 if (limb == null || limb.GetCreature()?.Pointer != target.Pointer)
                     continue;
-                struck = limb;
-                contact = collider.ClosestPoint(fistAt);
-                break;
+                var overlapped = limb.GetHumanPart();
+                bool isGuard = overlapped is HumanoidNodeTagValue.LeftHand or HumanoidNodeTagValue.RightHand
+                    or HumanoidNodeTagValue.LeftForearm or HumanoidNodeTagValue.RightForearm;
+                if (isGuard && guard == null)
+                {
+                    guard = limb;
+                    guardContact = collider.ClosestPoint(fistAt);
+                }
+                else if (!isGuard && struck == null)
+                {
+                    struck = limb;
+                    contact = collider.ClosestPoint(fistAt);
+                }
             }
-            if (struck == null)
+            // Once a punch has slipped past the guard, only the head and body count for the rest of it.
+            if (fighter.Slipped)
+                guard = null;
+            if (struck == null && guard == null)
                 return;
-            fighter.Connected = true;
-            var part = struck.GetHumanPart();
-            if (part is HumanoidNodeTagValue.LeftHand or HumanoidNodeTagValue.RightHand
-                or HumanoidNodeTagValue.LeftForearm or HumanoidNodeTagValue.RightForearm)
+            if (guard != null && struck == null && !fighter.GuardDecided)
             {
-                // Caught on the guard.
+                // The fist reached the raised guard first. About half the time it's caught there, and otherwise it
+                // gets past (round the side, under it, or the guard was late) and carries on to the head or body.
+                fighter.GuardDecided = true;
+                if (Random.value > 0.5f)
+                {
+                    fighter.Slipped = true;
+                    return;
+                }
+            }
+            fighter.Connected = true;
+            if (guard != null && (struck == null || Random.value < 0.5f))
+            {
                 fighter.Blocked++;
                 PunchesBlocked++;
-                Sounds.Play(ImpactSFXType.RbHit, contact, 0.5f);
+                Sounds.Play(ImpactSFXType.RbHit, guardContact, 0.5f);
                 return;
             }
             var body = fist.GetRigidbody();

@@ -14,7 +14,7 @@ namespace BunchAStuff
     /// </summary>
     public class Main : MelonMod
     {
-        public const string Version = "0.1.0";
+        public const string Version = "0.2.0";
 
         public override void OnInitializeMelon()
         {
@@ -31,7 +31,6 @@ namespace BunchAStuff
         public override void OnUpdate()
         {
             Guns.Update();
-            Effects.Update();
             Fights.Update();
             Teams.Update();
         }
@@ -39,7 +38,6 @@ namespace BunchAStuff
         private static void Reset()
         {
             Guns.Reset();
-            Effects.Clear();
             Fights.Reset();
             Teams.ClearMembers();
         }

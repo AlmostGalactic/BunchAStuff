@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections;
 using System.Collections.Generic;
 using System.IO;
@@ -12,6 +12,7 @@ using FruktSharedLibrary.UI;
 using FruktSharedLibrary.Utilities;
 using Il2CppData.Maps;
 using Il2CppLVA.Creatures;
+using Il2CppSpawnables.Weapons;
 using MelonLoader.Utils;
 using UnityEngine;
 using Object = UnityEngine.Object;
@@ -85,6 +86,24 @@ namespace BunchAStuff
             Check("All six guns are under Weapons", Guns.All.Count == 6 && Guns.All.All(g => g.Registered && g.Item.CategoryName == "Weapons"),
                 string.Join(", ", Guns.All.Select(g => $"{g.Name} [{g.Item?.CategoryName}]")));
             Check("The guns have icons", Guns.All.All(g => g.Item?.Icon != null));
+            foreach (var (name, make, muzzle) in new (string, Func<GameObject>, Vector3)[]
+            {
+                ("Moth-9", GunModels.Smg, GunModels.SmgMuzzle), ("Barrow-12", GunModels.Shotgun, GunModels.ShotgunMuzzle),
+                ("Heron-R", GunModels.Railgun, GunModels.RailgunMuzzle), ("Tusk-40", GunModels.Launcher, GunModels.LauncherMuzzle),
+                ("Gale-2", GunModels.AirCannon, GunModels.AirCannonMuzzle), ("Halt-1", GunModels.FreezeGun, GunModels.FreezeGunMuzzle),
+            })
+            {
+                var model = make();
+                var mesh = model.GetComponent<MeshFilter>().sharedMesh;
+                var size = mesh.bounds.size;
+                bool voxels = mesh.vertexCount >= 1500 && size.z > 0.4f && size.z < 1.5f && size.y > 0.1f && size.y < 0.6f;
+                float tip = mesh.bounds.max.z;
+                Check($"The {name} is a detailed voxel model the size of the game's guns", voxels && mesh.vertexCount < 60000,
+                    $"{mesh.vertexCount} vertices, {size.z * 100:0} x {size.y * 100:0} x {size.x * 100:0} cm");
+                Check($"The {name}'s muzzle is at the end of its barrel", Mathf.Abs(muzzle.z - tip) < 0.04f && muzzle.z > size.z * 0.5f + mesh.bounds.min.z,
+                    $"muzzle {muzzle.z * 100:0} cm, tip {tip * 100:0} cm");
+                Object.Destroy(model);
+            }
             Creatures.DeleteAll();
             yield return Wait(1f);
 
@@ -177,6 +196,7 @@ namespace BunchAStuff
             for (float end = Now() + 3f; blast == null && Now() < end;)
                 yield return null;
             Guns.Exploded -= OnBlast;
+            Check("The blast throws fire, smoke and debris", FruktSharedLibrary.Combat.Effects.Count > 100, $"{FruktSharedLibrary.Combat.Effects.Count} cubes");
             Check("The rocket blows up on the dummy", blast.HasValue && Vector3.Distance(blast.Value, dummy.GetPosition()) < 1.5f,
                 blast.HasValue ? $"{Vector3.Distance(blast.Value, dummy.GetPosition()):0.00} m away" : "it never went off");
             Shot("bas-blast");
@@ -353,6 +373,7 @@ namespace BunchAStuff
             Teams.ClearMembers();
             Check("Leaving a team takes the tag away", tag != null && !tag.Exists && Teams.TagOf(a) == null);
         }
+
 
         // ------------------------------------------------------------ helpers
 
