@@ -528,15 +528,16 @@ namespace BunchAStuff
             int limbsBefore = patient.GetLimbCount();
             int bleedingBefore = patient.GetLimbs().Sum(l => l.GetBleedingWoundCount());
 
-            // Thrown at their middle like a dart.
-            var target = patient.GetLimb(HumanoidNodeTagValue.Spine)?.GetPosition() ?? patient.GetPosition();
+            // Thrown at their middle the way the throw key does it, from the camera at the crosshair.
+            Check("The throw key is a setting", Settings.ThrowKey != null, Settings.ThrowKey?.ToString() ?? "none");
             var from = LocalPlayer.CameraPosition + LocalPlayer.Forward * 0.9f;
-            var syringe = health.Prop.Place(from, Quaternion.LookRotation(target - from));
+            var syringe = health.Prop.Place(from, Quaternion.LookRotation(-LocalPlayer.Forward));
             Spawned.Add(syringe);
             AbstractLimb hit = null;
             void OnStab(Syringes.Kind kind, AbstractLimb limb) => hit = limb;
             Syringes.Stabbed += OnStab;
-            syringe.GetComponent<Rigidbody>().velocity = (target - from).normalized * 9f;
+            yield return null;
+            Check("A syringe can be thrown", Syringes.Throw(syringe, LocalPlayer.CameraPosition, LocalPlayer.Forward));
             for (float end = Now() + 2f; hit == null && Now() < end;)
                 yield return null;
             Syringes.Stabbed -= OnStab;

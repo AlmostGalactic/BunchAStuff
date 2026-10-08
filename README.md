@@ -46,8 +46,9 @@ between all the teams as evenly as possible, or take everyone off their teams. Y
 ## Syringes
 
 Syringes are under **Props** in the terminal. Put one down, pick it up with the cursor and push the needle into
-someone, or throw it at them needle first. It sticks in, the plunger goes down and the dose takes effect. Grab it
-again to pull it out. Each syringe works once.
+someone, or press **G** while you hold it to throw it, needle first, at whatever you're aiming at. It sticks in, the
+plunger goes down and the dose takes effect. Grab it again to pull it out. Each syringe works once. The throw key can
+be changed in the mod's settings.
 
 | Syringe | What it does |
 |---------|--------------|
@@ -72,7 +73,7 @@ Only the living bruise, and a Health Syringe clears them.
 ## Settings
 
 The Bunch-A-Stuff! settings page in the mod menu has explosion damage, punch damage and force, whether people fight back,
-whether team names show, whether people bruise and how long bruises take to heal.
+whether team names show, the key that throws a syringe, whether people bruise and how long bruises take to heal.
 
 ## Testing
 

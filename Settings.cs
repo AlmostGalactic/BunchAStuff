@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.Globalization;
 using System.Linq;
+using FruktSharedLibrary.Controls;
 using FruktSharedLibrary.UI;
 using MelonLoader;
 using MelonLoader.Preferences;
@@ -17,6 +18,9 @@ namespace BunchAStuff
         private static MelonPreferences_Entry<float> _punchDamage;
         private static MelonPreferences_Entry<float> _punchForce;
         private static MelonPreferences_Entry<bool> _fightBack;
+        private static MelonPreferences_Entry<string> _throwKey;
+        private static KeyBind _throwBind;
+        private static string _throwBindText;
         private static MelonPreferences_Entry<bool> _bruising;
         private static MelonPreferences_Entry<float> _bruiseSeconds;
         private static MelonPreferences_Entry<bool> _showTeamTags;
@@ -34,6 +38,8 @@ namespace BunchAStuff
                 "How hard punches knock people back.", false, false, new ValueRange<float>(0f, 80f));
             _fightBack = _prefs.CreateEntry("FightBack", true, "People fight back",
                 "Someone who gets picked on in a fight starts fighting too.");
+            _throwKey = _prefs.CreateEntry("ThrowSyringeKey", "G", "Throw syringe key",
+                "Throws the syringe you're holding with the cursor, needle first, at whatever you're aiming at.");
             _bruising = _prefs.CreateEntry("Bruising", true, "Bruises",
                 "People bruise where they're punched or hit something hard.");
             _bruiseSeconds = _prefs.CreateEntry("BruiseMinutes", 20f, "Bruises last (minutes)",
@@ -51,6 +57,21 @@ namespace BunchAStuff
         internal static float PunchForce => _punchForce.Value;
         internal static bool FightBack => _fightBack.Value;
         internal static bool Bruising => _bruising.Value;
+
+        /// <summary>The key that throws a held syringe (none if it's been cleared).</summary>
+        internal static KeyBind ThrowKey
+        {
+            get
+            {
+                var text = _throwKey.Value ?? string.Empty;
+                if (text != _throwBindText)
+                {
+                    _throwBindText = text;
+                    _throwBind = KeyBind.TryParse(text, out var bind) ? bind : null;
+                }
+                return _throwBind;
+            }
+        }
         internal static float BruiseSeconds => Mathf.Max(1f, _bruiseSeconds.Value) * 60f;
         internal static bool ShowTeamTags => _showTeamTags.Value;
 

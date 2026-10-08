@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using FruktSharedLibrary.Combat;
+using FruktSharedLibrary.UI;
 using FruktSharedLibrary.Entities;
 using FruktSharedLibrary.Gameplay;
 using FruktSharedLibrary.Interop;
@@ -83,6 +84,8 @@ namespace BunchAStuff
         /// <summary>The needle's point, relative to the syringe.</summary>
         internal static readonly Vector3 Tip = new(0f, 0f, (TipZ + 0.5f) * Voxel);
         private const float PlungeSeconds = 0.6f;
+        private const float ThrowSpeed = 18f;
+        private const float ThrowReach = 60f;
         private const float NeedleFrom = 21f * Voxel;
 
         private static readonly List<Kind> Kinds = new();
@@ -203,6 +206,8 @@ namespace BunchAStuff
             internal AbstractLimb Limb;
             internal float Plunged = -1f; // -1 until it goes in, then how far down the plunger is (0 to 1)
             internal bool Empty;
+            // Until then, a thrown syringe keeps its needle pointing the way it flies.
+            internal float FlyingUntil;
         }
 
         private static void Track(Kind kind, GameObject copy)
@@ -221,7 +226,11 @@ namespace BunchAStuff
             Copies[copy.Pointer] = c;
             var events = ObjectEvents.For(copy);
             events.ImpactSounds = true;
-            events.Collided += impact => TryStab(c, impact.Other, impact.Point);
+            events.Collided += impact =>
+            {
+                c.FlyingUntil = 0f;
+                TryStab(c, impact.Other, impact.Point);
+            };
             events.Grabbed += () => PullOut(c);
         }
 
@@ -284,9 +293,64 @@ namespace BunchAStuff
         internal static bool IsStuck(GameObject syringe) =>
             syringe.Exists() && Copies.TryGetValue(syringe.Pointer, out var c) && c.Stuck != null && c.Stuck.IsActive;
 
+        /// <summary>
+        /// Throws the syringe the player is holding with the cursor, needle first, at whatever they're aiming at.
+        /// False if they aren't holding a full one.
+        /// </summary>
+        internal static bool ThrowHeld()
+        {
+            var held = LocalPlayer.HeldObject;
+            if (held == null || !Copies.TryGetValue(held.gameObject.Pointer, out var c) || c.Empty || c.Plunged >= 0f)
+                return false;
+            LocalPlayer.ReleaseHeldObject();
+            Throw(c, LocalPlayer.CameraPosition, LocalPlayer.Forward);
+            return true;
+        }
+
+        /// <summary>Throws a placed syringe from a point along a direction, the same way (for the self-test).</summary>
+        internal static bool Throw(GameObject syringe, Vector3 from, Vector3 direction)
+        {
+            if (!syringe.Exists() || !Copies.TryGetValue(syringe.Pointer, out var c) || c.Empty || c.Plunged >= 0f)
+                return false;
+            Throw(c, from, direction);
+            return true;
+        }
+
+        private static void Throw(Copy c, Vector3 from, Vector3 direction)
+        {
+            if (c.Body == null)
+                return;
+            direction.Normalize();
+            PullOut(c);
+            var start = from + direction * 0.7f;
+            // Aim at what the crosshair is on (not the syringe itself), and throw a little high so it drops onto it.
+            var target = from + direction * ThrowReach;
+            float nearest = ThrowReach;
+            foreach (var hit in Physics.RaycastAll(from, direction, ThrowReach, Physics.AllLayers, QueryTriggerInteraction.Ignore))
+            {
+                if (hit.collider == null || hit.distance >= nearest || hit.collider.transform.IsChildOf(c.Object.transform))
+                    continue;
+                nearest = hit.distance;
+                target = hit.point;
+            }
+            var offset = target - start;
+            float time = Mathf.Max(0.02f, offset.magnitude / ThrowSpeed);
+            var velocity = offset / time - Physics.gravity * (0.5f * time);
+            c.Body.isKinematic = false;
+            c.Body.position = start;
+            c.Body.rotation = Quaternion.LookRotation(velocity);
+            c.Object.transform.SetPositionAndRotation(start, c.Body.rotation);
+            c.Body.velocity = velocity;
+            c.Body.angularVelocity = Vector3.zero;
+            c.FlyingUntil = Time.time + 3f;
+            Sounds.Play(ToolsSFXType.PinSound, start, 0.3f);
+        }
+
         internal static void Update()
         {
             float dt = Time.deltaTime;
+            if (Settings.ThrowKey?.WasPressed() == true && !ModMenu.IsOpen && FruktSharedLibrary.Core.GameState.InSandbox)
+                ThrowHeld();
             if (Copies.Count > 0)
             {
                 foreach (var key in Copies.Keys.ToList())
@@ -299,6 +363,8 @@ namespace BunchAStuff
                     }
                     if (c.Stuck != null && !c.Stuck.IsActive)
                         c.Stuck = null;
+                    if (Time.time < c.FlyingUntil && c.Stuck == null && c.Body != null && c.Body.velocity.sqrMagnitude > 4f)
+                        c.Body.MoveRotation(Quaternion.LookRotation(c.Body.velocity));
                     if (c.Plunged < 0f || c.Empty)
                         continue;
                     c.Plunged = Mathf.Min(1f, c.Plunged + dt / PlungeSeconds);
