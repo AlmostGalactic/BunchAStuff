@@ -189,16 +189,17 @@ namespace BunchAStuff
 
         private const float BlastRadius = 4.5f;
 
-        // Wounds waiting to be made. Each one rebuilds a limb's voxels, so a blast's wounds are spread over a few
-        // frames instead of all landing in one.
-        private static readonly Queue<(Collider Collider, Vector3 Point, int Radius, float Strength, Vector3 Direction)> Wounds = new();
-        private const int WoundsPerFrame = 8;
+        // Body parts waiting to be torn, each with all its wounds. Tearing a part rebuilds its voxels, which takes a
+        // few milliseconds, so a blast's parts are spread over the next frames within a time budget.
+        private static readonly Queue<(Collider Collider, List<(Vector3 Point, int RadiusVoxels, float Strength)> Wounds, Vector3 Direction)> Torn = new();
+        private const double TearBudgetMs = 4.0;
 
         /// <summary>
-        /// Rips into every body part in range: deep wounds in each, more and bigger the closer it is, so people near
-        /// the blast lose real chunks and limbs.
+        /// Rips into every body part in range, harder the closer it is: a strong wound where the blast meets the part,
+        /// and for parts close by another from the middle, so people near the blast lose whole limbs. The work grows
+        /// with the cube of a wound's radius, so the wounds are kept small and made strong instead.
         /// </summary>
-        private static void Tear(Vector3 at)
+        internal static void Tear(Vector3 at)
         {
             var done = new HashSet<IntPtr>();
             foreach (var collider in Physics.OverlapSphere(at, BlastRadius * 1.1f, Layers.Puppet, QueryTriggerInteraction.Ignore).ToList())
@@ -211,15 +212,11 @@ namespace BunchAStuff
                 if (falloff <= 0f)
                     continue;
                 var away = (limb.GetPosition() - at).normalized;
-                int wounds = 2 + Mathf.RoundToInt(2f * falloff);
-                var e = collider.bounds.extents * 0.5f;
-                for (int i = 0; i < wounds; i++)
-                {
-                    var point = i == 0 ? closest
-                        : collider.ClosestPoint(closest + new Vector3(Random.Range(-e.x, e.x), Random.Range(-e.y, e.y), Random.Range(-e.z, e.z)));
-                    Wounds.Enqueue((collider, point, Mathf.RoundToInt(Mathf.Lerp(14f, 36f, falloff)),
-                        Settings.ExplosionDamage * Mathf.Lerp(10f, 35f, falloff), away + Random.insideUnitSphere * 0.4f));
-                }
+                float strength = Settings.ExplosionDamage * Mathf.Lerp(40f, 160f, falloff);
+                var wounds = new List<(Vector3, int, float)> { (closest, Mathf.RoundToInt(Mathf.Lerp(6f, 12f, falloff)), strength) };
+                if (falloff > 0.4f)
+                    wounds.Add((collider.bounds.center, Mathf.RoundToInt(Mathf.Lerp(4f, 10f, falloff)), strength));
+                Torn.Enqueue((collider, wounds, away));
                 limb.AddForceAtPosition(away * 45f * falloff, closest);
             }
         }
@@ -334,10 +331,11 @@ namespace BunchAStuff
 
         internal static void Update()
         {
-            for (int i = 0; i < WoundsPerFrame && Wounds.Count > 0; i++)
+            var clock = System.Diagnostics.Stopwatch.StartNew();
+            while (Torn.Count > 0 && clock.Elapsed.TotalMilliseconds < TearBudgetMs)
             {
-                var w = Wounds.Dequeue();
-                Damage.Apply(w.Collider, w.Point, w.Radius, w.Strength, w.Direction);
+                var part = Torn.Dequeue();
+                Damage.Apply(part.Collider, part.Wounds, part.Direction);
             }
             for (int i = Rockets.Count - 1; i >= 0; i--)
             {
@@ -352,7 +350,7 @@ namespace BunchAStuff
             foreach (var rocket in Rockets)
                 rocket.Destroy();
             Rockets.Clear();
-            Wounds.Clear();
+            Torn.Clear();
             FrozenBodies.Clear();
         }
     }
