@@ -478,8 +478,13 @@ namespace BunchAStuff
                 fighter.GuardDecided = true;
                 if (Random.value > 0.5f)
                 {
+                    // It gets past: the head or the body takes it.
                     fighter.Slipped = true;
-                    return;
+                    struck = target.GetLimb(Random.value < 0.5f ? HumanoidNodeTagValue.Head : HumanoidNodeTagValue.Spine);
+                    if (struck == null)
+                        return;
+                    contact = struck.GetPosition();
+                    guard = null;
                 }
             }
             fighter.Connected = true;

@@ -163,6 +163,10 @@ namespace BunchAStuff
                 yield return step;
 
             // The Heron-R goes through two people in a row.
+            // A fresh person for the rail: the first one's middle has been shot away by now.
+            dummy.Delete();
+            foreach (var step in SpawnHuman(LocalPlayer.GetPointInFront(5f), c => dummy = c))
+                yield return step;
             AbstractCreature second = null;
             foreach (var step in SpawnHuman(LocalPlayer.GetPointInFront(8f), c => second = c))
                 yield return step;
@@ -215,10 +219,12 @@ namespace BunchAStuff
                 var from = standing.GetPosition();
                 float hurtBefore = Hurt(standing);
                 Guns.Detonate(from + new Vector3(1.5f, 0f, 0f));
+                yield return Wait(0.5f);
+                Shot("bas-blast-person");
                 yield return Wait(0.8f);
                 float moved = Vector3.Distance(from, standing.GetPosition());
-                Check("A blast beside someone throws them", moved > 2f, $"{moved:0.0} m");
-                Check("A blast beside someone wounds them", Hurt(standing) > hurtBefore + 1f, $"{hurtBefore:0.0} -> {Hurt(standing):0.0}");
+                Check("A blast beside someone throws them", moved > 1f, $"{moved:0.0} m");
+                Check("A blast beside someone wounds them", Hurt(standing) > hurtBefore + 8f, $"{hurtBefore:0.0} -> {Hurt(standing):0.0}");
                 standing.Delete();
             }
 

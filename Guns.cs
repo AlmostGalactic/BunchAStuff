@@ -189,10 +189,39 @@ namespace BunchAStuff
 
         private const float BlastRadius = 4.5f;
 
+        /// <summary>
+        /// Rips into every body part in range: several deep wounds in each, more and bigger the closer it is, so
+        /// people near the blast lose real chunks and limbs.
+        /// </summary>
+        private static void Tear(Vector3 at)
+        {
+            var done = new HashSet<IntPtr>();
+            foreach (var collider in Physics.OverlapSphere(at, BlastRadius * 1.1f, Physics.AllLayers, QueryTriggerInteraction.Ignore).ToList())
+            {
+                var limb = Creatures.LimbFromCollider(collider);
+                if (limb == null || !done.Add(limb.Pointer))
+                    continue;
+                var closest = collider.ClosestPoint(at);
+                float falloff = 1f - Vector3.Distance(at, closest) / (BlastRadius * 1.1f);
+                if (falloff <= 0f)
+                    continue;
+                var away = (limb.GetPosition() - at).normalized;
+                int wounds = 1 + Mathf.RoundToInt(4f * falloff);
+                for (int i = 0; i < wounds; i++)
+                {
+                    var e = collider.bounds.extents * 0.6f;
+                    var point = collider.ClosestPoint(closest + new Vector3(Random.Range(-e.x, e.x), Random.Range(-e.y, e.y), Random.Range(-e.z, e.z)));
+                    Damage.Apply(collider, point, Mathf.RoundToInt(Mathf.Lerp(5f, 20f, falloff)),
+                        Settings.ExplosionDamage * Mathf.Lerp(1.2f, 5f, falloff), away + Random.insideUnitSphere * 0.4f);
+                }
+                limb.AddForceAtPosition(away * 45f * falloff, closest);
+            }
+        }
+
         /// <summary>The blast: wounds, shoves and throws people, and the fire and smoke.</summary>
         internal static void Detonate(Vector3 at)
         {
-            Damage.Explosion(at, BlastRadius, force: 160f, maxRadiusVoxels: 16, strength: Settings.ExplosionDamage * 2f);
+            Tear(at);
             // Whole bodies get thrown, not just the limbs nearest the blast.
             foreach (var creature in Creatures.Living.ToList())
             {
@@ -201,7 +230,7 @@ namespace BunchAStuff
                 if (falloff <= 0f)
                     continue;
                 var away = (offset.sqrMagnitude > 0.01f ? offset.normalized : Vector3.up) + Vector3.up * 0.7f;
-                creature.AddForce(away.normalized * 14f * falloff, ForceMode.VelocityChange);
+                creature.AddForce(away.normalized * 10f * falloff, ForceMode.VelocityChange);
             }
             Effects.Explosion(at, BlastRadius);
         }
