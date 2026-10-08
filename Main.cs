@@ -22,6 +22,7 @@ namespace BunchAStuff
             Guns.Create();
             Teams.Create();
             Fights.Create();
+            Syringes.Create();
             Page.Create();
             GameEvents.SandboxReady += _ => Reset();
             GameEvents.SandboxExited += Reset;
@@ -32,6 +33,7 @@ namespace BunchAStuff
         {
             Guns.Update();
             Fights.Update();
+            Syringes.Update();
             Teams.Update();
         }
 
@@ -39,6 +41,7 @@ namespace BunchAStuff
         {
             Guns.Reset();
             Fights.Reset();
+            Syringes.Reset();
             Teams.ClearMembers();
         }
     }

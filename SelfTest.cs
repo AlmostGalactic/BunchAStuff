@@ -11,6 +11,8 @@ using FruktSharedLibrary.Spawning;
 using FruktSharedLibrary.UI;
 using FruktSharedLibrary.Utilities;
 using Il2CppData.Maps;
+using Il2CppLVA.Limbs;
+using Il2CppLVA.NodesHierarchy.Benchmark.Variants;
 using Il2CppLVA.Creatures;
 using Il2CppSpawnables.Weapons;
 using MelonLoader.Utils;
@@ -112,6 +114,8 @@ namespace BunchAStuff
             foreach (var step in FightTests())
                 yield return step;
             foreach (var step in TeamTests())
+                yield return step;
+            foreach (var step in SyringeTests())
                 yield return step;
         }
 
@@ -401,6 +405,80 @@ namespace BunchAStuff
             Check("Leaving a team takes the tag away", tag != null && !tag.Exists && Teams.TagOf(a) == null);
         }
 
+
+        // ------------------------------------------------------------ syringes
+
+        private static IEnumerable SyringeTests()
+        {
+            Creatures.DeleteAll();
+            yield return Wait(1f);
+            var health = Syringes.Health;
+            Check("The Health Syringe is under Props", health.Prop.Registered && health.Prop.Item?.CategoryName == "Props", health.Prop.Item?.CategoryName);
+
+            // A close look at one.
+            var look = health.Prop.Place(LocalPlayer.CameraPosition + LocalPlayer.Forward * 0.45f,
+                Quaternion.LookRotation(LocalPlayer.CameraRotation * Vector3.right) * Quaternion.Euler(0f, 0f, 0f));
+            Check("A syringe can be put in the world", look.Exists());
+            if (look.Exists())
+            {
+                look.GetComponent<Rigidbody>().isKinematic = true;
+                Spawned.Add(look);
+                yield return ShotAndWait("bas-syringe");
+                Object.Destroy(look);
+            }
+
+            AbstractCreature patient = null;
+            foreach (var step in SpawnHuman(LocalPlayer.GetPointInFront(4f), c => patient = c))
+                yield return step;
+            Check("Someone spawns for the syringe", patient != null);
+            if (patient == null)
+                yield break;
+            // Cut first, and let it start bleeding, before they're held still.
+            foreach (var part in new[] { HumanoidNodeTagValue.LeftLeg, HumanoidNodeTagValue.RightLeg })
+            {
+                var limb = patient.GetLimb(part);
+                if (limb != null)
+                    FruktSharedLibrary.Combat.Bullets.Launch(LocalPlayer.CameraPosition, (limb.GetPosition() - LocalPlayer.CameraPosition).normalized);
+            }
+            patient.DrainBlood(patient.GetBloodCapacity() * 0.5f);
+            yield return Wait(1.5f);
+            Hang(patient, 2.6f);
+            yield return Wait(0.5f);
+            float bloodBefore = patient.GetBlood();
+            int bleedingBefore = patient.GetLimbs().Sum(l => l.GetBleedingWoundCount());
+
+            // Thrown at their middle like a dart.
+            var target = patient.GetLimb(HumanoidNodeTagValue.Spine)?.GetPosition() ?? patient.GetPosition();
+            var from = LocalPlayer.CameraPosition + LocalPlayer.Forward * 0.9f;
+            var syringe = health.Prop.Place(from, Quaternion.LookRotation(target - from));
+            Spawned.Add(syringe);
+            AbstractLimb hit = null;
+            void OnStab(Syringes.Kind kind, AbstractLimb limb) => hit = limb;
+            Syringes.Stabbed += OnStab;
+            syringe.GetComponent<Rigidbody>().velocity = (target - from).normalized * 9f;
+            for (float end = Now() + 2f; hit == null && Now() < end;)
+                yield return null;
+            Syringes.Stabbed -= OnStab;
+            Check("A thrown syringe sticks in", hit != null && hit.GetCreature() == patient && Syringes.IsStuck(syringe), hit?.GetHumanPart().ToString() ?? "it missed");
+            if (hit == null && syringe.Exists())
+                Check("Stabbing it in by hand works", Syringes.StabNow(syringe, patient.GetLimb(HumanoidNodeTagValue.Spine)));
+            yield return Wait(0.25f);
+            Shot("bas-syringe-stuck");
+            yield return Wait(1.2f);
+            Check("The plunger goes down and it's empty", Syringes.IsEmpty(syringe));
+            Check("The dose is working", Syringes.Active.Any(d => d.Creature == patient && d.Kind == health));
+            yield return Wait(health.Seconds + 0.5f);
+            float bloodAfter = patient.GetBlood();
+            int bleedingAfter = patient.GetLimbs().Sum(l => l.GetBleedingWoundCount());
+            Check("The Health Syringe refills the blood", bloodAfter > bloodBefore + patient.GetBloodCapacity() * 0.3f && bloodAfter >= patient.GetBloodCapacity() * 0.95f,
+                $"{bloodBefore:0} -> {bloodAfter:0} of {patient.GetBloodCapacity():0}");
+            Check("The Health Syringe stops the bleeding", bleedingBefore > 0 && bleedingAfter == 0, $"{bleedingBefore} -> {bleedingAfter} wounds");
+            Check("The dose wears off", !Syringes.Active.Any(d => d.Creature == patient));
+            Check("An empty syringe does nothing", !Syringes.StabNow(syringe, patient.GetLimb(HumanoidNodeTagValue.Head)));
+            Shot("bas-syringe-after");
+            yield return Wait(1f);
+            patient.Delete();
+        }
 
         // ------------------------------------------------------------ helpers
 

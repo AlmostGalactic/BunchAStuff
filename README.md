@@ -1,6 +1,6 @@
 # Bunch-A-Stuff!
 
-A bunch of stuff for FRUKT: six guns, fist fights, and teams.
+A bunch of stuff for FRUKT: six guns, fist fights, teams and syringes.
 
 Requires [FruktSharedLibrary](https://github.com/AlmostGalactic/FruktSharedLibrary) 0.3.4 or newer.
 
@@ -42,6 +42,16 @@ other, and each person's team shows over their head.
 
 On the mod's page in the mod menu you can make teams (a name and a colour), delete any of them, split everyone
 between all the teams as evenly as possible, or take everyone off their teams. Your list of teams is saved.
+
+## Syringes
+
+Syringes are under **Props** in the terminal. Put one down, pick it up with the cursor and push the needle into
+someone, or throw it at them needle first. It sticks in, the plunger goes down and the dose takes effect. Grab it
+again to pull it out. Each syringe works once.
+
+| Syringe | What it does |
+|---------|--------------|
+| Health Syringe | Stops the bleeding and fills the blood back up over 4 seconds. Destroyed flesh stays gone. |
 
 ## Settings
 
