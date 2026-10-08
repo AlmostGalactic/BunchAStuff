@@ -65,7 +65,7 @@ namespace BunchAStuff
                 ended: dose => Recalculate<CognitionLevel>(dose.Creature));
 
             Acid = Syringes.Add("Acid Syringe", new Color(0.75f, 1f, 0.1f), 7f,
-                "Eats the part it goes into away from the outside in, then gets into the parts next to it.",
+                "Eats away the part it goes into, spreading out from the needle, then gets into the parts next to it.",
                 new[] { ("eats", "flesh and bone"), ("takes", "7 s") },
                 started: dose =>
                 {
@@ -75,7 +75,7 @@ namespace BunchAStuff
                     if (parent != null)
                         next.Add(parent);
                     dose.Data = next;
-                    Tissue.Dissolve(dose.Limb, dose.Seconds * 0.6f);
+                    Tissue.Dissolve(dose.Limb, dose.Point, dose.Seconds * 0.6f, 0.92f, 0.7f);
                     Fizz(dose, 10);
                 },
                 working: (dose, dt) =>
@@ -85,8 +85,9 @@ namespace BunchAStuff
                         dose.Data = null;
                         foreach (var limb in next)
                         {
+                            // From the side nearest the needle, so it creeps over the joint.
                             if (limb.Exists())
-                                Tissue.Dissolve(limb, dose.Seconds * 0.6f, 0.75f);
+                                Tissue.Dissolve(limb, dose.Point, dose.Seconds * 0.6f, Random.Range(0.55f, 0.8f), 0.8f);
                         }
                     }
                     if ((dose.Timer += dt) > 0.08f)
@@ -224,7 +225,8 @@ namespace BunchAStuff
         {
             if (!dose.Limb.Exists())
                 return;
-            var at = dose.Limb.GetPosition();
+            // Bubbling round the needle first, then all over as it spreads.
+            var at = Vector3.Lerp(dose.Point, dose.Limb.GetPosition(), dose.Progress) + Random.insideUnitSphere * 0.04f;
             Effects.Burst(at, dose.Kind.Liquid, count, 0.7f, 0.025f, 0.5f, true, -2f, null, 180f, new Color(0.3f, 0.45f, 0.05f));
             if (Random.value < 0.4f)
                 Effects.Smoke(at, 0.12f, 0.8f, Vector3.up * 0.6f, 0.45f);

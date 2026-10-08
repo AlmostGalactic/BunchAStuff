@@ -9,6 +9,7 @@ using FruktSharedLibrary.Interop;
 using FruktSharedLibrary.Utilities;
 using Random = UnityEngine.Random;
 using Il2CppInfrastructure.Project.AssetsHandlers.SFX;
+using Il2CppLVA.Limbs;
 using UnityEngine;
 using Object = UnityEngine.Object;
 
@@ -193,6 +194,11 @@ namespace BunchAStuff
         // few milliseconds, so a blast's parts are spread over the next frames within a time budget.
         private static readonly Queue<(Collider Collider, List<(Vector3 Point, int RadiusVoxels, float Strength)> Wounds, Vector3 Direction)> Torn = new();
         private const double TearBudgetMs = 4.0;
+        // Limbs this close to a blast can be torn clean off; on the blast they always are.
+        private const float RipRadius = 1.8f;
+        private const float ShredRadius = 0.7f;
+        // Limbs to rip off, deepest first so each comes away on its own, and how fast to throw them.
+        private static readonly Queue<(AbstractLimb Limb, Vector3 Velocity)> Ripped = new();
 
         /// <summary>
         /// Rips into every body part in range, harder the closer it is: a strong wound where the blast meets the part,
@@ -202,6 +208,8 @@ namespace BunchAStuff
         internal static void Tear(Vector3 at)
         {
             var done = new HashSet<IntPtr>();
+            var rip = new List<(AbstractLimb Limb, int Depth, Vector3 Velocity)>();
+            float reach = Mathf.Clamp(Settings.ExplosionDamage, 0f, 2f);
             foreach (var collider in Physics.OverlapSphere(at, BlastRadius * 1.1f, Layers.Puppet, QueryTriggerInteraction.Ignore).ToList())
             {
                 var limb = Creatures.LimbFromCollider(collider);
@@ -218,15 +226,53 @@ namespace BunchAStuff
                     wounds.Add((collider.bounds.center, Mathf.RoundToInt(Mathf.Lerp(4f, 10f, falloff)), strength));
                 Torn.Enqueue((collider, wounds, away));
                 limb.AddForceAtPosition(away * 45f * falloff, closest);
+
+                // Close up, limbs come off. Right on the blast, everything does.
+                float distance = Vector3.Distance(at, closest);
+                if (reach <= 0f || distance > RipRadius * reach || limb.GetParentLimb() == null)
+                    continue;
+                float chance = distance < ShredRadius * reach ? 1f : Mathf.InverseLerp(RipRadius * reach, ShredRadius * reach, distance) * 0.9f + 0.1f;
+                if (Random.value > chance)
+                    continue;
+                var fling = (away + Vector3.up * 0.6f + Random.insideUnitSphere * 0.5f).normalized * Mathf.Lerp(9f, 24f, falloff);
+                rip.Add((limb, Depth(limb), fling));
             }
+            foreach (var (limb, _, velocity) in rip.OrderByDescending(r => r.Depth))
+                Ripped.Enqueue((limb, velocity));
+        }
+
+        private static int Depth(AbstractLimb limb)
+        {
+            int depth = 0;
+            for (var up = limb.GetParentLimb(); up != null && depth < 32; up = up.GetParentLimb())
+                depth++;
+            return depth;
+        }
+
+        /// <summary>Tears a limb off and throws it, with a spray of blood where it came away.</summary>
+        private static void RipOff(AbstractLimb limb, Vector3 velocity)
+        {
+            if (!limb.Exists() || limb.GetParentLimb() == null)
+                return;
+            var at = limb.GetPosition();
+            if (!limb.Detach())
+                return;
+            var body = limb.GetRigidbody();
+            if (body.Exists())
+            {
+                body.AddForce(velocity, ForceMode.VelocityChange);
+                body.AddTorque(Random.onUnitSphere * Random.Range(10f, 30f), ForceMode.VelocityChange);
+            }
+            Effects.Burst(at, new Color(0.55f, 0.02f, 0.02f), 14, 5f, 0.05f, 1.1f, false, 9f, velocity.normalized, 70f,
+                new Color(0.25f, 0f, 0f), true);
         }
 
         /// <summary>The blast: wounds, shoves and throws people, and the fire and smoke.</summary>
         internal static void Detonate(Vector3 at)
         {
             Tear(at);
-            // Whole bodies get thrown, not just the limbs nearest the blast.
-            foreach (var creature in Creatures.Living.ToList())
+            // Whole bodies get thrown, not just the limbs nearest the blast; the dead too.
+            foreach (var creature in Creatures.All.ToList())
             {
                 var offset = creature.GetPosition() - at;
                 float falloff = 1f - offset.magnitude / (BlastRadius * 1.6f);
@@ -332,6 +378,11 @@ namespace BunchAStuff
         internal static void Update()
         {
             var clock = System.Diagnostics.Stopwatch.StartNew();
+            while (Ripped.Count > 0 && clock.Elapsed.TotalMilliseconds < TearBudgetMs)
+            {
+                var (limb, velocity) = Ripped.Dequeue();
+                RipOff(limb, velocity);
+            }
             while (Torn.Count > 0 && clock.Elapsed.TotalMilliseconds < TearBudgetMs)
             {
                 var part = Torn.Dequeue();
@@ -351,6 +402,7 @@ namespace BunchAStuff
                 rocket.Destroy();
             Rockets.Clear();
             Torn.Clear();
+            Ripped.Clear();
             FrozenBodies.Clear();
         }
     }

@@ -2,12 +2,12 @@
 
 A bunch of stuff for FRUKT: six guns, fist fights, teams and syringes.
 
-Requires [FruktSharedLibrary](https://github.com/AlmostGalactic/FruktSharedLibrary) 0.3.6 or newer.
+Requires [FruktSharedLibrary](https://github.com/AlmostGalactic/FruktSharedLibrary) 0.3.7 or newer.
 
 ## Installing
 
 1. Install [MelonLoader](https://melonwiki.xyz/) 0.7 or newer for FRUKT.
-2. Put `FruktSharedLibrary.dll` (0.3.6 or newer) in `FRUKT/Mods`.
+2. Put `FruktSharedLibrary.dll` (0.3.7 or newer) in `FRUKT/Mods`.
 3. Put `BunchAStuff.dll` in `FRUKT/Mods`.
 
 ## Guns
@@ -21,7 +21,7 @@ at the same size as the game's guns.
 | Moth-9 | Submachine gun, 9mm. Fires while the button is held. |
 | Barrow-12 | Pump shotgun, nine 12-gauge pellets a shot. |
 | Heron-R | Rail rifle. A 7.62 round at several times the speed, through everything in a line. |
-| Tusk-40 | Rocket launcher. The rocket leaves a trail and explodes on impact. |
+| Tusk-40 | Rocket launcher. The rocket leaves a trail and explodes on impact, tearing the limbs off anyone close and throwing them. |
 | Gale-2 | Air cannon. Throws whatever it hits without hurting it. |
 | Halt-1 | Holds whatever it hits still in mid-air. Hit it again to let go. |
 
@@ -53,7 +53,7 @@ again to pull it out. Each syringe works once.
 |---------|--------------|
 | Health Syringe | Stops the bleeding, fills the blood back up and grows damaged flesh back over about 4 seconds. Limbs that came off stay off. |
 | Knockout Syringe | Out cold for 20 seconds. They come round afterwards if nothing else is wrong with them. |
-| Acid Syringe | Eats the part it goes into away, then gets into the parts next to it. |
+| Acid Syringe | Eats away the part it goes into, spreading unevenly out from the needle, then gets into the parts next to it. |
 | Bone Eater Syringe | Dissolves every bone in the body and they fold up. A Health Syringe grows the bones back. |
 | Durability Syringe | For a minute, lost flesh grows back within a second, wounds close and the blood stays topped up. |
 | Adrenaline Syringe | For 30 seconds no pain, and nothing knocks them out, not even blood loss. |

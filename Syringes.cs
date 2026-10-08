@@ -51,6 +51,10 @@ namespace BunchAStuff
             internal Kind Kind { get; }
             internal AbstractCreature Creature { get; }
             internal AbstractLimb Limb { get; }
+            /// <summary>Where the needle went in, following the limb as it moves.</summary>
+            internal Vector3 Point => _on.Exists() ? _on.TransformPoint(_local) : _start;
+            private readonly Transform _on;
+            private readonly Vector3 _local, _start;
             internal float Elapsed { get; set; }
             /// <summary>How long this dose lasts (the kind's time unless the self-test gave another).</summary>
             internal float Seconds { get; }
@@ -60,11 +64,14 @@ namespace BunchAStuff
             internal float Timer;
             internal object Data;
 
-            internal Injection(Kind kind, AbstractCreature creature, AbstractLimb limb, float seconds)
+            internal Injection(Kind kind, AbstractCreature creature, AbstractLimb limb, Vector3 point, float seconds)
             {
                 Kind = kind;
                 Creature = creature;
                 Limb = limb;
+                _on = limb.GetMovingTransform();
+                _start = point;
+                _local = _on.Exists() ? _on.InverseTransformPoint(point) : point;
                 Seconds = seconds;
             }
         }
@@ -257,12 +264,12 @@ namespace BunchAStuff
         }
 
         /// <summary>Starts a dose in someone without a syringe (for the self-test and for other parts of the mod).</summary>
-        internal static Injection Inject(Kind kind, AbstractLimb limb, float seconds = -1f)
+        internal static Injection Inject(Kind kind, AbstractLimb limb, float seconds = -1f, Vector3? point = null)
         {
             var creature = limb?.GetCreature();
             if (creature == null || !creature.IsValid())
                 return null;
-            var dose = new Injection(kind, creature, limb, seconds >= 0f ? seconds : kind.Seconds);
+            var dose = new Injection(kind, creature, limb, point ?? limb.GetPosition(), seconds >= 0f ? seconds : kind.Seconds);
             Run(() => kind.Started?.Invoke(dose), kind);
             Working.Add(dose);
             return dose;
@@ -306,7 +313,7 @@ namespace BunchAStuff
                     if (c.Plunged >= 1f)
                     {
                         c.Empty = true;
-                        Inject(c.Kind, c.Limb);
+                        Inject(c.Kind, c.Limb, point: c.Object.transform.TransformPoint(Tip));
                     }
                 }
             }

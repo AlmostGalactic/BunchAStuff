@@ -231,6 +231,29 @@ namespace BunchAStuff
                 standing.Delete();
             }
 
+            // A blast right on someone blows them apart.
+            AbstractCreature target = null;
+            foreach (var step in SpawnHuman(LocalPlayer.GetPointInFront(6f), c => target = c))
+                yield return step;
+            Check("Someone stands on the blast", target != null);
+            if (target != null)
+            {
+                yield return Wait(1f);
+                var already = new HashSet<IntPtr>(Creatures.All.Select(c => c.Pointer));
+                var centre = target.GetPosition();
+                Guns.Detonate(centre + Vector3.up * 0.3f);
+                yield return Wait(0.6f);
+                Shot("bas-blast-apart");
+                yield return Wait(0.6f);
+                var pieces = Creatures.All.Where(c => c.IsValid() && !already.Contains(c.Pointer)).ToList();
+                Check("A blast on someone blows them apart", pieces.Count >= 6, $"{pieces.Count} pieces");
+                float flown = pieces.Select(c => Vector3.Distance(centre, c.GetPosition())).DefaultIfEmpty(0f).Max();
+                Check("The pieces fly", flown > 3f, $"furthest {flown:0.0} m");
+                foreach (var piece in pieces)
+                    piece.Delete();
+                target.Delete();
+            }
+
             // The Gale-2 throws a crate; the Halt-1 stops one and lets it go.
             var cube = GameObject.CreatePrimitive(PrimitiveType.Cube);
             var crate = Spawner.SpawnMesh(cube.GetComponent<MeshFilter>().sharedMesh, LocalPlayer.CameraPosition + LocalPlayer.Forward * 4f, mass: 20f);
