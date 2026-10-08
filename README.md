@@ -2,12 +2,12 @@
 
 A bunch of stuff for FRUKT: six guns, fist fights, teams and syringes.
 
-Requires [FruktSharedLibrary](https://github.com/AlmostGalactic/FruktSharedLibrary) 0.3.5 or newer.
+Requires [FruktSharedLibrary](https://github.com/AlmostGalactic/FruktSharedLibrary) 0.3.6 or newer.
 
 ## Installing
 
 1. Install [MelonLoader](https://melonwiki.xyz/) 0.7 or newer for FRUKT.
-2. Put `FruktSharedLibrary.dll` (0.3.5 or newer) in `FRUKT/Mods`.
+2. Put `FruktSharedLibrary.dll` (0.3.6 or newer) in `FRUKT/Mods`.
 3. Put `BunchAStuff.dll` in `FRUKT/Mods`.
 
 ## Guns
@@ -52,6 +52,14 @@ again to pull it out. Each syringe works once.
 | Syringe | What it does |
 |---------|--------------|
 | Health Syringe | Stops the bleeding, fills the blood back up and grows damaged flesh back over about 4 seconds. Limbs that came off stay off. |
+| Knockout Syringe | Out cold for 20 seconds. They come round afterwards if nothing else is wrong with them. |
+| Acid Syringe | Eats the part it goes into away, then gets into the parts next to it. |
+| Bone Eater Syringe | Dissolves every bone in the body and they fold up. A Health Syringe grows the bones back. |
+| Durability Syringe | For a minute, lost flesh grows back within a second, wounds close and the blood stays topped up. |
+| Adrenaline Syringe | For 30 seconds no pain, and nothing knocks them out, not even blood loss. |
+| Float Syringe | Lighter than air for 8 seconds. |
+| Explosive Syringe | Ticks for 4 seconds, faster and faster, then blows up like a Tusk-40 rocket. |
+| Rage Syringe | They go for the nearest person from another team with their fists. |
 
 ## Settings
 

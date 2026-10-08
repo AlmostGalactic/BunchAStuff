@@ -52,14 +52,20 @@ namespace BunchAStuff
             internal AbstractCreature Creature { get; }
             internal AbstractLimb Limb { get; }
             internal float Elapsed { get; set; }
+            /// <summary>How long this dose lasts (the kind's time unless the self-test gave another).</summary>
+            internal float Seconds { get; }
             /// <summary>How far through it is, from 0 to 1.</summary>
-            internal float Progress => Kind.Seconds > 0f ? Mathf.Clamp01(Elapsed / Kind.Seconds) : 1f;
+            internal float Progress => Seconds > 0f ? Mathf.Clamp01(Elapsed / Seconds) : 1f;
+            /// <summary>A timer and a slot for the kind's own use.</summary>
+            internal float Timer;
+            internal object Data;
 
-            internal Injection(Kind kind, AbstractCreature creature, AbstractLimb limb)
+            internal Injection(Kind kind, AbstractCreature creature, AbstractLimb limb, float seconds)
             {
                 Kind = kind;
                 Creature = creature;
                 Limb = limb;
+                Seconds = seconds;
             }
         }
 
@@ -82,39 +88,15 @@ namespace BunchAStuff
         /// <summary>Raised when a syringe goes into someone (for the self-test).</summary>
         internal static event Action<Kind, AbstractLimb> Stabbed;
 
-        internal static Kind Health { get; private set; }
+        internal static void Create() => SyringeKinds.Create();
 
-        internal static void Create()
-        {
-            Health = Add("Health Syringe", new Color(0.25f, 0.95f, 0.35f), 4f,
-                "Stops the bleeding, fills the blood back up and grows damaged flesh back over a few seconds. Limbs that came off stay off.",
-                new[] { ("bleeding", "stops"), ("blood", "refills"), ("flesh", "grows back"), ("takes", "4 s") },
-                started: dose =>
-                {
-                    dose.Creature.StopBleeding();
-                    // Only the limbs they still have: anything that came off stays off.
-                    Tissue.Regrow(dose.Creature, dose.Kind.Seconds);
-                    Glow(dose, 24);
-                },
-                working: (dose, dt) =>
-                {
-                    var creature = dose.Creature;
-                    float capacity = creature.GetBloodCapacity();
-                    if (capacity > 0f)
-                        creature.SetBlood(Mathf.Min(capacity, creature.GetBlood() + capacity * dt / dose.Kind.Seconds));
-                    // New wounds close too while it works.
-                    creature.StopBleeding();
-                    if (UnityEngine.Random.value < dt * 6f)
-                        Glow(dose, 3);
-                },
-                ended: dose => dose.Creature.Heal());
-        }
-
-        private static void Glow(Injection dose, int count)
+        /// <summary>A puff of the liquid's colour sparkling out of the part that was stabbed.</summary>
+        internal static void Glow(Injection dose, int count, Color? color = null)
         {
             if (!dose.Limb.Exists())
                 return;
-            Effects.Burst(dose.Limb.GetPosition(), dose.Kind.Liquid, count, 1.2f, 0.025f, 0.6f, true, -1.5f, null, 180f, dose.Kind.Liquid * 0.4f);
+            var c = color ?? dose.Kind.Liquid;
+            Effects.Burst(dose.Limb.GetPosition(), c, count, 1.2f, 0.025f, 0.6f, true, -1.5f, null, 180f, c * 0.4f);
         }
 
         /// <summary>Adds a kind of syringe to the terminal.</summary>
@@ -275,12 +257,12 @@ namespace BunchAStuff
         }
 
         /// <summary>Starts a dose in someone without a syringe (for the self-test and for other parts of the mod).</summary>
-        internal static Injection Inject(Kind kind, AbstractLimb limb)
+        internal static Injection Inject(Kind kind, AbstractLimb limb, float seconds = -1f)
         {
             var creature = limb?.GetCreature();
             if (creature == null || !creature.IsValid())
                 return null;
-            var dose = new Injection(kind, creature, limb);
+            var dose = new Injection(kind, creature, limb, seconds >= 0f ? seconds : kind.Seconds);
             Run(() => kind.Started?.Invoke(dose), kind);
             Working.Add(dose);
             return dose;
@@ -335,11 +317,12 @@ namespace BunchAStuff
                 if (!dose.Creature.IsValid())
                 {
                     Working.RemoveAt(i);
+                    Run(() => dose.Kind.Ended?.Invoke(dose), dose.Kind);
                     continue;
                 }
                 dose.Elapsed += dt;
                 Run(() => dose.Kind.Working?.Invoke(dose, dt), dose.Kind);
-                if (dose.Elapsed >= dose.Kind.Seconds)
+                if (dose.Elapsed >= dose.Seconds)
                 {
                     Working.RemoveAt(i);
                     Run(() => dose.Kind.Ended?.Invoke(dose), dose.Kind);

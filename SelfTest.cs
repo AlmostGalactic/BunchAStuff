@@ -33,7 +33,6 @@ namespace BunchAStuff
         private static readonly List<GameObject> Spawned = new();
         private static int _passed, _failed;
         private static bool _quit, _started;
-
         private static string FlagPath => Path.Combine(MelonEnvironment.UserDataDirectory, "BunchAStuff.selftest");
         private static string LogPath => Path.Combine(MelonEnvironment.UserDataDirectory, "BunchAStuff.selftest.log");
 
@@ -412,7 +411,7 @@ namespace BunchAStuff
         {
             Creatures.DeleteAll();
             yield return Wait(1f);
-            var health = Syringes.Health;
+            var health = SyringeKinds.Health;
             Check("The Health Syringe is under Props", health.Prop.Registered && health.Prop.Item?.CategoryName == "Props", health.Prop.Item?.CategoryName);
 
             // A close look at one.
@@ -486,6 +485,131 @@ namespace BunchAStuff
             Shot("bas-syringe-after");
             yield return Wait(1f);
             patient.Delete();
+
+            foreach (var step in SyringeKindTests())
+                yield return step;
+        }
+
+        private static IEnumerable SyringeKindTests()
+        {
+            Check("All nine syringes are under Props", Syringes.All.Count == 9 && Syringes.All.All(k => k.Prop.Registered && k.Prop.Item?.CategoryName == "Props"),
+                string.Join(", ", Syringes.All.Select(k => k.Name)));
+            AbstractCreature person = null;
+            float HeadY() => person.GetLimb(HumanoidNodeTagValue.Head)?.GetPosition().y ?? 0f;
+            AbstractLimb Part(HumanoidNodeTagValue part) => person.GetLimb(part);
+
+            // Knockout: they drop, and come round once it wears off.
+            foreach (var step in SpawnHuman(LocalPlayer.GetPointInFront(4f), c => person = c))
+                yield return step;
+            float standing = HeadY();
+            Syringes.Inject(SyringeKinds.Knockout, Part(HumanoidNodeTagValue.Spine), 4f);
+            yield return Wait(3f);
+            Check("The Knockout Syringe drops them", standing - HeadY() > 0.7f && person.GetCognition() < 5f, $"head {standing:0.00} -> {HeadY():0.00}, awake {person.GetCognition():0}");
+            yield return Wait(4f);
+            Check("They come round afterwards", person.GetCognition() > 50f, $"awake {person.GetCognition():0}");
+            person.Delete();
+
+            // Acid: the part it goes into is eaten away, and the parts next to it get some.
+            foreach (var step in SpawnHuman(LocalPlayer.GetPointInFront(4f), c => person = c))
+                yield return step;
+            Hang(person, 3f);
+            var forearm = Part(HumanoidNodeTagValue.LeftForearm);
+            var arm = Part(HumanoidNodeTagValue.LeftArm);
+            Syringes.Inject(SyringeKinds.Acid, forearm);
+            yield return Wait(1.5f);
+            Shot("bas-syringe-acid");
+            yield return Wait(SyringeKinds.Acid.Seconds);
+            float forearmLeft = forearm.Exists() ? forearm.GetWholeness() : 0f, armLeft = arm.Exists() ? arm.GetWholeness() : 0f;
+            Check("The Acid Syringe eats the part away", forearmLeft < 20f, $"{forearmLeft:0}% left");
+            Check("It spreads to the part next to it", armLeft < 90f, $"{armLeft:0}% left");
+            person.Delete();
+
+            // Bone Eater: the bones go.
+            foreach (var step in SpawnHuman(LocalPlayer.GetPointInFront(4f), c => person = c))
+                yield return step;
+            float Bones() => person.GetLimbs().SelectMany(l => l.GetAllOrgans()).Where(o => o.TryCast<Il2CppLVA.Organs.Variants.Human.Bone>() != null)
+                .Select(o => o.GetIntegrity()).DefaultIfEmpty(-1f).Average();
+            float bonesBefore = Bones();
+            standing = HeadY();
+            Syringes.Inject(SyringeKinds.BoneEater, Part(HumanoidNodeTagValue.Spine), 8f);
+            yield return Wait(6f);
+            Shot("bas-syringe-bones");
+            Check("The Bone Eater Syringe eats the bones", bonesBefore > 0f && Bones() < bonesBefore * 0.2f, $"bones {bonesBefore:0.##} -> {Bones():0.##}");
+            Check("They fold up", standing - HeadY() > 0.7f, $"head {standing:0.00} -> {HeadY():0.00}");
+            yield return Wait(2.5f);
+            person.Delete();
+
+            // Durability: a fresh wound grows back within a second or two.
+            foreach (var step in SpawnHuman(LocalPlayer.GetPointInFront(4f), c => person = c))
+                yield return step;
+            Hang(person, 3f);
+            Syringes.Inject(SyringeKinds.Durability, Part(HumanoidNodeTagValue.Spine), 12f);
+            yield return Wait(0.5f);
+            var cut = Part(HumanoidNodeTagValue.RightForearm);
+            FruktSharedLibrary.Combat.Damage.Apply(cut, cut.GetPosition(), 8, 10f);
+            // It heals so fast that the lowest it gets is what counts.
+            float wounded = 100f;
+            for (float end = Now() + 1.5f; Now() < end;)
+            {
+                yield return null;
+                wounded = Mathf.Min(wounded, cut.GetWholeness());
+            }
+            yield return Wait(1.5f);
+            Check("The Durability Syringe heals new wounds fast", wounded < 99f && cut.GetWholeness() >= 99f, $"{wounded:0.0} -> {cut.GetWholeness():0.0}");
+            person.Delete();
+
+            // Adrenaline: no pain and no fainting from blood loss while it lasts.
+            foreach (var step in SpawnHuman(LocalPlayer.GetPointInFront(4f), c => person = c))
+                yield return step;
+            Syringes.Inject(SyringeKinds.Adrenaline, Part(HumanoidNodeTagValue.Spine), 6f);
+            person.DrainBlood(person.GetBloodCapacity() * 0.8f);
+            var leg = Part(HumanoidNodeTagValue.LeftLeg);
+            FruktSharedLibrary.Combat.Damage.Apply(leg, leg.GetPosition(), 6, 5f);
+            yield return Wait(3f);
+            Check("The Adrenaline Syringe keeps them awake and out of pain", person.GetCognition() > 95f && person.GetPain() < 1f,
+                $"awake {person.GetCognition():0}, pain {person.GetPain():0.#}");
+            person.Delete();
+
+            // Float: up they go.
+            foreach (var step in SpawnHuman(LocalPlayer.GetPointInFront(4f), c => person = c))
+                yield return step;
+            standing = HeadY();
+            Syringes.Inject(SyringeKinds.Float, Part(HumanoidNodeTagValue.Spine), 4f);
+            yield return Wait(3f);
+            Shot("bas-syringe-float");
+            Check("The Float Syringe lifts them", HeadY() - standing > 1.5f, $"head {standing:0.00} -> {HeadY():0.00}");
+            yield return Wait(1.5f);
+            person.Delete();
+
+            // Explosive: it goes off where they are.
+            foreach (var step in SpawnHuman(LocalPlayer.GetPointInFront(6f), c => person = c))
+                yield return step;
+            var where = person.GetPosition();
+            float whole = Hurt(person);
+            Syringes.Inject(SyringeKinds.Explosive, Part(HumanoidNodeTagValue.Spine));
+            yield return Wait(SyringeKinds.Explosive.Seconds - 0.5f);
+            Check("It hasn't gone off yet", Hurt(person) < whole + 5f);
+            yield return Wait(1.2f);
+            Check("The Explosive Syringe blows them up", Hurt(person) > whole + 300f && Vector3.Distance(where, person.GetPosition()) > 1f,
+                $"{whole:0} -> {Hurt(person):0}, thrown {Vector3.Distance(where, person.GetPosition()):0.0} m");
+            yield return Wait(1f);
+            Creatures.DeleteAll();
+            yield return Wait(0.5f);
+
+            // Rage: they start a fight.
+            var right = LocalPlayer.CameraRotation * Vector3.right;
+            AbstractCreature other = null;
+            foreach (var step in SpawnHuman(LocalPlayer.GetPointInFront(4f) - right, c => person = c))
+                yield return step;
+            foreach (var step in SpawnHuman(LocalPlayer.GetPointInFront(4f) + right, c => other = c))
+                yield return step;
+            Teams.ClearMembers();
+            Syringes.Inject(SyringeKinds.Rage, Part(HumanoidNodeTagValue.Spine));
+            yield return Wait(0.5f);
+            Check("The Rage Syringe starts a fight", Fights.IsFighting(person) && Fights.TargetOf(person) == other);
+            Fights.StopAll();
+            Creatures.DeleteAll();
+            yield return Wait(0.5f);
         }
 
         // ------------------------------------------------------------ helpers
