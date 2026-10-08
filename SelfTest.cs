@@ -200,7 +200,7 @@ namespace BunchAStuff
             for (float end = Now() + 3f; blast == null && Now() < end;)
                 yield return null;
             Guns.Exploded -= OnBlast;
-            Check("The blast throws fire, smoke and debris", FruktSharedLibrary.Combat.Effects.Count > 100, $"{FruktSharedLibrary.Combat.Effects.Count} cubes");
+            Check("The blast throws fire, smoke and debris", FruktSharedLibrary.Combat.Effects.Count > 80, $"{FruktSharedLibrary.Combat.Effects.Count} cubes");
             Check("The rocket blows up on the dummy", blast.HasValue && Vector3.Distance(blast.Value, dummy.GetPosition()) < 1.5f,
                 blast.HasValue ? $"{Vector3.Distance(blast.Value, dummy.GetPosition()):0.00} m away" : "it never went off");
             Shot("bas-blast");
@@ -224,7 +224,7 @@ namespace BunchAStuff
                 yield return Wait(0.8f);
                 float moved = Vector3.Distance(from, standing.GetPosition());
                 Check("A blast beside someone throws them", moved > 1f, $"{moved:0.0} m");
-                Check("A blast beside someone wounds them", Hurt(standing) > hurtBefore + 8f, $"{hurtBefore:0.0} -> {Hurt(standing):0.0}");
+                Check("A blast beside someone shreds them", Hurt(standing) > hurtBefore + 400f, $"{hurtBefore:0.0} -> {Hurt(standing):0.0}");
                 standing.Delete();
             }
 

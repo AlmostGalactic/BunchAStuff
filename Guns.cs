@@ -189,14 +189,19 @@ namespace BunchAStuff
 
         private const float BlastRadius = 4.5f;
 
+        // Wounds waiting to be made. Each one rebuilds a limb's voxels, so a blast's wounds are spread over a few
+        // frames instead of all landing in one.
+        private static readonly Queue<(Collider Collider, Vector3 Point, int Radius, float Strength, Vector3 Direction)> Wounds = new();
+        private const int WoundsPerFrame = 8;
+
         /// <summary>
-        /// Rips into every body part in range: several deep wounds in each, more and bigger the closer it is, so
-        /// people near the blast lose real chunks and limbs.
+        /// Rips into every body part in range: deep wounds in each, more and bigger the closer it is, so people near
+        /// the blast lose real chunks and limbs.
         /// </summary>
         private static void Tear(Vector3 at)
         {
             var done = new HashSet<IntPtr>();
-            foreach (var collider in Physics.OverlapSphere(at, BlastRadius * 1.1f, Physics.AllLayers, QueryTriggerInteraction.Ignore).ToList())
+            foreach (var collider in Physics.OverlapSphere(at, BlastRadius * 1.1f, Layers.Puppet, QueryTriggerInteraction.Ignore).ToList())
             {
                 var limb = Creatures.LimbFromCollider(collider);
                 if (limb == null || !done.Add(limb.Pointer))
@@ -206,13 +211,14 @@ namespace BunchAStuff
                 if (falloff <= 0f)
                     continue;
                 var away = (limb.GetPosition() - at).normalized;
-                int wounds = 1 + Mathf.RoundToInt(4f * falloff);
+                int wounds = 2 + Mathf.RoundToInt(2f * falloff);
+                var e = collider.bounds.extents * 0.5f;
                 for (int i = 0; i < wounds; i++)
                 {
-                    var e = collider.bounds.extents * 0.6f;
-                    var point = collider.ClosestPoint(closest + new Vector3(Random.Range(-e.x, e.x), Random.Range(-e.y, e.y), Random.Range(-e.z, e.z)));
-                    Damage.Apply(collider, point, Mathf.RoundToInt(Mathf.Lerp(5f, 20f, falloff)),
-                        Settings.ExplosionDamage * Mathf.Lerp(1.2f, 5f, falloff), away + Random.insideUnitSphere * 0.4f);
+                    var point = i == 0 ? closest
+                        : collider.ClosestPoint(closest + new Vector3(Random.Range(-e.x, e.x), Random.Range(-e.y, e.y), Random.Range(-e.z, e.z)));
+                    Wounds.Enqueue((collider, point, Mathf.RoundToInt(Mathf.Lerp(14f, 36f, falloff)),
+                        Settings.ExplosionDamage * Mathf.Lerp(10f, 35f, falloff), away + Random.insideUnitSphere * 0.4f));
                 }
                 limb.AddForceAtPosition(away * 45f * falloff, closest);
             }
@@ -235,6 +241,9 @@ namespace BunchAStuff
             Effects.Explosion(at, BlastRadius);
         }
 
+        /// <summary>Flies a rocket from a point along a direction (the Tusk-40 does this; the self-test too).</summary>
+        internal static void LaunchRocket(Vector3 from, Vector3 direction) => Rockets.Add(new Rocket(from, direction.normalized));
+
         private sealed class Rocket
         {
             private const float Speed = 32f;
@@ -242,7 +251,9 @@ namespace BunchAStuff
             private readonly GameObject _body;
             private Vector3 _velocity;
             private readonly float _born;
-            private float _flicker;
+            private float _trail;
+            private readonly Light _light;
+            private bool _puff;
 
             internal Rocket(Vector3 position, Vector3 direction)
             {
@@ -251,6 +262,12 @@ namespace BunchAStuff
                 _body.transform.position = position;
                 _body.transform.rotation = Quaternion.LookRotation(direction);
                 _body.SetActive(true);
+                _light = _body.AddComponent<Light>();
+                _light.type = LightType.Point;
+                _light.color = new Color(1f, 0.6f, 0.2f);
+                _light.range = 5f;
+                _light.intensity = 3f;
+                _light.shadows = LightShadows.None;
                 _velocity = direction * Speed;
                 _born = Time.time;
             }
@@ -273,15 +290,19 @@ namespace BunchAStuff
                 _body.transform.position = from + step;
                 _body.transform.rotation = Quaternion.LookRotation(_velocity);
                 // Fire out of the back and a trail of smoke behind it.
-                var tail = _body.transform.position - _velocity.normalized * 0.28f;
-                Effects.Flame(tail, 0.14f, 0.25f, -_velocity.normalized * 3f);
-                Effects.Flame(tail, 0.1f, 0.18f, -_velocity.normalized * 5f);
-                Effects.Smoke(tail, 0.2f, 1.2f, -_velocity.normalized * 0.8f, 0.25f);
-                if ((_flicker += dt) > 0.07f)
+                // The same trail at any frame rate: a flame every 1/60 s and smoke every other one.
+                var back = -_velocity.normalized;
+                _trail += dt;
+                for (int n = 0; _trail >= 1f / 60f && n < 3; n++)
                 {
-                    _flicker = 0f;
-                    Effects.Flash(tail, new Color(1f, 0.6f, 0.2f), 5f, 0.1f, 3f);
+                    _trail -= 1f / 60f;
+                    var tail = _body.transform.position + back * (0.28f + _trail * Speed);
+                    Effects.Flame(tail, 0.14f, 0.22f, back * 4f);
+                    if ((_puff = !_puff))
+                        Effects.Smoke(tail, 0.24f, 1.1f, back * 0.8f, 0.25f);
                 }
+                _trail = Mathf.Min(_trail, 1f / 60f);
+                _light.intensity = Random.Range(2.2f, 3.6f);
                 if (Time.time - _born > Life)
                 {
                     Explode(_body.transform.position);
@@ -313,6 +334,11 @@ namespace BunchAStuff
 
         internal static void Update()
         {
+            for (int i = 0; i < WoundsPerFrame && Wounds.Count > 0; i++)
+            {
+                var w = Wounds.Dequeue();
+                Damage.Apply(w.Collider, w.Point, w.Radius, w.Strength, w.Direction);
+            }
             for (int i = Rockets.Count - 1; i >= 0; i--)
             {
                 if (Rockets[i].Step(Time.deltaTime))
@@ -326,6 +352,7 @@ namespace BunchAStuff
             foreach (var rocket in Rockets)
                 rocket.Destroy();
             Rockets.Clear();
+            Wounds.Clear();
             FrozenBodies.Clear();
         }
     }

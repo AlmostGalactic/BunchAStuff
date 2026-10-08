@@ -2,12 +2,12 @@
 
 A bunch of stuff for FRUKT: six guns, fist fights, and teams.
 
-Requires [FruktSharedLibrary](https://github.com/AlmostGalactic/FruktSharedLibrary) 0.3.2 or newer.
+Requires [FruktSharedLibrary](https://github.com/AlmostGalactic/FruktSharedLibrary) 0.3.3 or newer.
 
 ## Installing
 
 1. Install [MelonLoader](https://melonwiki.xyz/) 0.7 or newer for FRUKT.
-2. Put `FruktSharedLibrary.dll` (0.3.2 or newer) in `FRUKT/Mods`.
+2. Put `FruktSharedLibrary.dll` (0.3.3 or newer) in `FRUKT/Mods`.
 3. Put `BunchAStuff.dll` in `FRUKT/Mods`.
 
 ## Guns
