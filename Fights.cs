@@ -492,6 +492,7 @@ namespace BunchAStuff
             {
                 fighter.Blocked++;
                 PunchesBlocked++;
+                Bruises.Add(guard, guardContact, guardContact - fistAt, 0.3f);
                 Sounds.Play(ImpactSFXType.RbHit, guardContact, 0.5f);
                 return;
             }
@@ -499,6 +500,7 @@ namespace BunchAStuff
             var direction = body != null && body.velocity.sqrMagnitude > 0.5f ? body.velocity.normalized : (struck.GetPosition() - fistAt).normalized;
             Damage.Apply(struck, contact, radiusVoxels: 2, strength: Settings.PunchDamage, direction: direction);
             struck.AddForceAtPosition(direction * Settings.PunchForce, contact);
+            Bruises.Add(struck, contact, -direction, Mathf.Clamp01(0.45f + Settings.PunchDamage));
             Sounds.Play(ImpactSFXType.FallDamageLightOrganic, contact, 0.9f);
             fighter.Landed++;
             PunchesLanded++;

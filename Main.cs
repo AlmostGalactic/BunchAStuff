@@ -34,6 +34,7 @@ namespace BunchAStuff
             Guns.Update();
             Fights.Update();
             Syringes.Update();
+            Bruises.Update();
             Teams.Update();
         }
 
@@ -42,6 +43,7 @@ namespace BunchAStuff
             Guns.Reset();
             Fights.Reset();
             Syringes.Reset();
+            Bruises.Reset();
             Teams.ClearMembers();
         }
     }

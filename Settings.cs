@@ -17,6 +17,8 @@ namespace BunchAStuff
         private static MelonPreferences_Entry<float> _punchDamage;
         private static MelonPreferences_Entry<float> _punchForce;
         private static MelonPreferences_Entry<bool> _fightBack;
+        private static MelonPreferences_Entry<bool> _bruising;
+        private static MelonPreferences_Entry<float> _bruiseSeconds;
         private static MelonPreferences_Entry<bool> _showTeamTags;
         private static MelonPreferences_Entry<string> _customTeams;
         private static MelonPreferences_Entry<bool> _teamsSeeded;
@@ -32,6 +34,10 @@ namespace BunchAStuff
                 "How hard punches knock people back.", false, false, new ValueRange<float>(0f, 80f));
             _fightBack = _prefs.CreateEntry("FightBack", true, "People fight back",
                 "Someone who gets picked on in a fight starts fighting too.");
+            _bruising = _prefs.CreateEntry("Bruising", true, "Bruises",
+                "People bruise where they're punched or hit something hard.");
+            _bruiseSeconds = _prefs.CreateEntry("BruiseMinutes", 20f, "Bruises last (minutes)",
+                "How long a bruise takes to heal: red, then deep purple, then green and yellow, then gone.", false, false, new ValueRange<float>(1f, 120f));
             _showTeamTags = _prefs.CreateEntry("ShowTeamTags", true, "Show team names",
                 "Show each person's team over their head.");
             // Teams the player made, as "Name|RRGGBB;Name|RRGGBB". Edited on the mod's page, not here.
@@ -44,6 +50,8 @@ namespace BunchAStuff
         internal static float PunchDamage => _punchDamage.Value;
         internal static float PunchForce => _punchForce.Value;
         internal static bool FightBack => _fightBack.Value;
+        internal static bool Bruising => _bruising.Value;
+        internal static float BruiseSeconds => Mathf.Max(1f, _bruiseSeconds.Value) * 60f;
         internal static bool ShowTeamTags => _showTeamTags.Value;
 
         internal static IEnumerable<(string Name, Color Color)> LoadTeams()

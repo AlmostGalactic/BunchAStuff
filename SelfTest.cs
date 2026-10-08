@@ -116,6 +116,62 @@ namespace BunchAStuff
                 yield return step;
             foreach (var step in SyringeTests())
                 yield return step;
+            foreach (var step in BruiseTests())
+                yield return step;
+        }
+
+        private static IEnumerable BruiseTests()
+        {
+            // A punch on the chest: red, then purple, then green and yellow, then gone.
+            AbstractCreature person = null;
+            foreach (var step in SpawnHuman(LocalPlayer.GetPointInFront(3f), c => person = c))
+                yield return step;
+            Check("Someone to bruise", person != null);
+            if (person == null)
+                yield break;
+            Hang(person, 1.5f);
+            yield return Wait(0.5f);
+            var chest = person.GetLimb(HumanoidNodeTagValue.Spine);
+            var from = LocalPlayer.CameraPosition;
+            bool aimed = Physics.Raycast(from, chest.GetPosition() + Vector3.up * 0.08f - from, out var hit, 5f, Layers.Puppet, QueryTriggerInteraction.Ignore)
+                && Creatures.LimbFromCollider(hit.collider)?.Pointer == chest.Pointer;
+            Check("The chest is in front of the camera", aimed);
+            // A short-lived bruise, watched as it heals: the colour has to change bit by bit, never in jumps.
+            int before = Bruises.Count;
+            const float life = 16f;
+            Bruises.Add(chest, hit.point, hit.normal, 0.9f, life);
+            Check("A knock leaves a bruise", Bruises.Count == before + 1 && Bruises.On(chest) == 1, $"{Bruises.On(chest)} on the chest");
+            Bruises.Add(chest, hit.point + Vector3.right * 0.01f, hit.normal, 0.5f);
+            Check("A knock on a bruise makes it worse, not another one", Bruises.On(chest) == 1);
+            float started = Now();
+            foreach (float at in new[] { 0.6f, 2f, 4f, 6f, 8f, 10f, 12f, 14f })
+            {
+                while (Now() - started < at)
+                    yield return null;
+                Shot($"bas-bruise-{at:00.0}s");
+            }
+            for (float end = started + life + 2f; Now() < end;)
+                yield return null;
+            Check("It heals away", Bruises.On(chest) == 0);
+            Shot("bas-bruise-gone");
+            yield return Wait(1f);
+
+            // A Health Syringe takes them away.
+            Bruises.Add(chest, hit.point, hit.normal, 0.9f);
+            Syringes.Inject(SyringeKinds.Health, chest, 1f);
+            yield return null;
+            Check("A Health Syringe heals bruises", Bruises.On(chest) == 0);
+            yield return Wait(1.5f);
+
+            // A fall: dropped from high up, they bruise where they land.
+            person.SetFrozen(false);
+            person.TeleportTo(LocalPlayer.GetPointInFront(4f) + Vector3.up * 7f);
+            Physics.SyncTransforms();
+            int beforeFall = Bruises.Count;
+            yield return Wait(3.5f);
+            Shot("bas-bruise-fall");
+            Check("A hard fall bruises them", Bruises.Count > beforeFall, $"{Bruises.Count - beforeFall} bruises");
+            person.Delete();
         }
 
         // ------------------------------------------------------------ guns
@@ -356,6 +412,7 @@ namespace BunchAStuff
             Check("They put their fists up", guard < 0.35f, $"fists {restingDrop:0.00} m under the head at rest, {guard:0.00} m in the fight");
             Check("Punches connect", Fights.PunchesLanded >= 1 && Fights.PunchesLanded + Fights.PunchesBlocked >= 3,
                 $"{Fights.PunchesLanded} landed, {Fights.PunchesBlocked} blocked");
+            Check("Punches leave bruises", Bruises.Count > 0, $"{Bruises.Count} bruises");
             Check("Punches hurt", Hurt(a) + Hurt(b) > hurtBefore, $"{hurtBefore:0.00} -> {Hurt(a) + Hurt(b):0.00}");
             yield return Wait(4f);
             yield return ShotAndWait("bas-fight-later");

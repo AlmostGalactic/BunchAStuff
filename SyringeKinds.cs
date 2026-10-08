@@ -48,6 +48,7 @@ namespace BunchAStuff
                 started: dose =>
                 {
                     dose.Creature.StopBleeding();
+                    Bruises.Heal(dose.Creature);
                     // Only the limbs they still have: anything that came off stays off.
                     Tissue.Regrow(dose.Creature, dose.Seconds);
                     Syringes.Glow(dose, 24);

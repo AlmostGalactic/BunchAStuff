@@ -1,6 +1,6 @@
 # Bunch-A-Stuff!
 
-A bunch of stuff for FRUKT: six guns, fist fights, teams and syringes.
+A bunch of stuff for FRUKT: six guns, fist fights, teams, syringes and bruises.
 
 Requires [FruktSharedLibrary](https://github.com/AlmostGalactic/FruktSharedLibrary) 0.3.7 or newer.
 
@@ -61,13 +61,21 @@ again to pull it out. Each syringe works once.
 | Explosive Syringe | Ticks for 4 seconds, faster and faster, then blows up like a Tusk-40 rocket. |
 | Rage Syringe | They go for the nearest person from another team with their fists. |
 
+## Bruises
+
+People bruise where they're punched or hit something hard: a fall, a crash, being thrown. A bruise is a patch of
+uneven blotches that starts red, darkens to deep purple, then slowly turns blue, olive, green and yellow as it heals,
+the edges before the middle, and fades away. The colour changes gradually the whole time. A bruise takes 20 minutes
+to heal (you can set anything from 1 minute to 2 hours). Another knock on the same spot makes it darker and bigger.
+Only the living bruise, and a Health Syringe clears them.
+
 ## Settings
 
 The Bunch-A-Stuff! settings page in the mod menu has explosion damage, punch damage and force, whether people fight back,
-and whether team names show.
+whether team names show, whether people bruise and how long bruises take to heal.
 
 ## Testing
 
 Create `UserData/BunchAStuff.selftest` (write `quit` in it to close the game afterwards) and start the game with
 FruktSharedLibrary's `tools/selftest-watch.ps1` running. It loads the Yard, fires every gun, starts fights, tries
-the teams, and writes `UserData/BunchAStuff.selftest.log`. Delete the file afterwards, or it runs every time.
+the teams, the syringes and bruises, and writes `UserData/BunchAStuff.selftest.log`. Delete the file afterwards, or it runs every time.
