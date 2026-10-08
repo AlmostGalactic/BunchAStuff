@@ -75,6 +75,12 @@ Only the living bruise, and a Health Syringe clears them.
 The Bunch-A-Stuff! settings page in the mod menu has explosion damage, punch damage and force, whether people fight back,
 whether team names show, the key that throws a syringe, whether people bruise and how long bruises take to heal.
 
+## Building
+
+You need FRUKT with MelonLoader (start the game once so it makes `MelonLoader/Il2CppAssemblies`) and
+`FruktSharedLibrary.dll` in `FRUKT/Mods`. Set the `FRUKT_DIR` environment variable to the game's folder if it isn't
+at `D:\SteamLibrary\steamapps\common\FRUKT`, then run `dotnet build`. The built mod is copied into `FRUKT/Mods`.
+
 ## Testing
 
 Create `UserData/BunchAStuff.selftest` (write `quit` in it to close the game afterwards) and start the game with

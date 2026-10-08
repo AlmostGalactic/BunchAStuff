@@ -513,11 +513,15 @@ namespace BunchAStuff
             if (patient == null)
                 yield break;
             // Cut first, and let it start bleeding, before they're held still.
+            // Shot from just in front of each leg: fired from the camera, a bullet can catch on part of someone who has
+            // only just appeared.
             foreach (var part in new[] { HumanoidNodeTagValue.LeftLeg, HumanoidNodeTagValue.RightLeg })
             {
                 var limb = patient.GetLimb(part);
-                if (limb != null)
-                    FruktSharedLibrary.Combat.Bullets.Launch(LocalPlayer.CameraPosition, (limb.GetPosition() - LocalPlayer.CameraPosition).normalized);
+                if (limb == null)
+                    continue;
+                var line = (limb.GetPosition() - LocalPlayer.CameraPosition).normalized;
+                FruktSharedLibrary.Combat.Bullets.Launch(limb.GetPosition() - line, line);
             }
             patient.DrainBlood(patient.GetBloodCapacity() * 0.5f);
             yield return Wait(1.5f);
@@ -674,11 +678,17 @@ namespace BunchAStuff
                 yield return step;
             var where = person.GetPosition();
             float whole = Hurt(person);
+            var others = new HashSet<IntPtr>(Creatures.All.Select(c => c.Pointer));
             Syringes.Inject(SyringeKinds.Explosive, Part(HumanoidNodeTagValue.Spine));
             yield return Wait(SyringeKinds.Explosive.Seconds - 0.5f);
             Check("It hasn't gone off yet", Hurt(person) < whole + 5f);
             yield return Wait(1.2f);
-            Check("The Explosive Syringe blows them up", Hurt(person) > whole + 300f && Vector3.Distance(where, person.GetPosition()) > 1f,
+            // They come apart: the pieces are new bodies of their own.
+            int pieces = Creatures.All.Count(c => c.IsValid() && !others.Contains(c.Pointer));
+            Check("The Explosive Syringe blows them up", Hurt(person) > whole + 300f && pieces >= 4, $"{pieces} pieces");
+            foreach (var piece in Creatures.All.Where(c => c.IsValid() && !others.Contains(c.Pointer)).ToList())
+                piece.Delete();
+            Check("The blast throws what's left", Hurt(person) > whole + 300f && Vector3.Distance(where, person.GetPosition()) > 0.5f,
                 $"{whole:0} -> {Hurt(person):0}, thrown {Vector3.Distance(where, person.GetPosition()):0.0} m");
             yield return Wait(1f);
             Creatures.DeleteAll();
