@@ -87,11 +87,13 @@ namespace BunchAStuff
         internal static void Create()
         {
             Health = Add("Health Syringe", new Color(0.25f, 0.95f, 0.35f), 4f,
-                "Stops the bleeding and fills the blood back up over a few seconds. Destroyed flesh stays gone.",
-                new[] { ("bleeding", "stops"), ("blood", "refills"), ("takes", "4 s") },
+                "Stops the bleeding, fills the blood back up and grows damaged flesh back over a few seconds. Limbs that came off stay off.",
+                new[] { ("bleeding", "stops"), ("blood", "refills"), ("flesh", "grows back"), ("takes", "4 s") },
                 started: dose =>
                 {
                     dose.Creature.StopBleeding();
+                    // Only the limbs they still have: anything that came off stays off.
+                    Tissue.Regrow(dose.Creature, dose.Kind.Seconds);
                     Glow(dose, 24);
                 },
                 working: (dose, dt) =>

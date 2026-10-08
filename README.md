@@ -2,12 +2,12 @@
 
 A bunch of stuff for FRUKT: six guns, fist fights, teams and syringes.
 
-Requires [FruktSharedLibrary](https://github.com/AlmostGalactic/FruktSharedLibrary) 0.3.4 or newer.
+Requires [FruktSharedLibrary](https://github.com/AlmostGalactic/FruktSharedLibrary) 0.3.5 or newer.
 
 ## Installing
 
 1. Install [MelonLoader](https://melonwiki.xyz/) 0.7 or newer for FRUKT.
-2. Put `FruktSharedLibrary.dll` (0.3.4 or newer) in `FRUKT/Mods`.
+2. Put `FruktSharedLibrary.dll` (0.3.5 or newer) in `FRUKT/Mods`.
 3. Put `BunchAStuff.dll` in `FRUKT/Mods`.
 
 ## Guns
@@ -51,7 +51,7 @@ again to pull it out. Each syringe works once.
 
 | Syringe | What it does |
 |---------|--------------|
-| Health Syringe | Stops the bleeding and fills the blood back up over 4 seconds. Destroyed flesh stays gone. |
+| Health Syringe | Stops the bleeding, fills the blood back up and grows damaged flesh back over about 4 seconds. Limbs that came off stay off. |
 
 ## Settings
 

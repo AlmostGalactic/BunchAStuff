@@ -445,6 +445,8 @@ namespace BunchAStuff
             Hang(patient, 2.6f);
             yield return Wait(0.5f);
             float bloodBefore = patient.GetBlood();
+            float hurtBefore = Hurt(patient);
+            int limbsBefore = patient.GetLimbCount();
             int bleedingBefore = patient.GetLimbs().Sum(l => l.GetBleedingWoundCount());
 
             // Thrown at their middle like a dart.
@@ -473,6 +475,12 @@ namespace BunchAStuff
             Check("The Health Syringe refills the blood", bloodAfter > bloodBefore + patient.GetBloodCapacity() * 0.3f && bloodAfter >= patient.GetBloodCapacity() * 0.95f,
                 $"{bloodBefore:0} -> {bloodAfter:0} of {patient.GetBloodCapacity():0}");
             Check("The Health Syringe stops the bleeding", bleedingBefore > 0 && bleedingAfter == 0, $"{bleedingBefore} -> {bleedingAfter} wounds");
+            for (float end = Now() + 4f; FruktSharedLibrary.Entities.Tissue.Active > 0 && Now() < end;)
+                yield return null;
+            // Hurt counts from -99 a limb, so this is how much is actually missing.
+            float goneBefore = hurtBefore + 99f * limbsBefore, goneAfter = Hurt(patient) + 99f * patient.GetLimbCount();
+            Check("The Health Syringe grows the flesh back", goneBefore > 1f && goneAfter < goneBefore * 0.3f, $"{goneBefore:0.0} -> {goneAfter:0.0} missing");
+            Check("It doesn't grow new limbs", patient.GetLimbCount() == limbsBefore, $"{limbsBefore} -> {patient.GetLimbCount()}");
             Check("The dose wears off", !Syringes.Active.Any(d => d.Creature == patient));
             Check("An empty syringe does nothing", !Syringes.StabNow(syringe, patient.GetLimb(HumanoidNodeTagValue.Head)));
             Shot("bas-syringe-after");
