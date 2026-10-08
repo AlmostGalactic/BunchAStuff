@@ -335,6 +335,7 @@ namespace BunchAStuff
                     Run(() => dose.Kind.Ended?.Invoke(dose), dose.Kind);
                 }
             }
+            SyringeKinds.Update(dt);
         }
 
         private static void Run(Action action, Kind kind)
@@ -354,6 +355,7 @@ namespace BunchAStuff
         {
             Working.Clear();
             Copies.Clear();
+            SyringeKinds.Reset();
         }
     }
 }

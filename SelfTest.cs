@@ -559,7 +559,14 @@ namespace BunchAStuff
             Shot("bas-syringe-bones");
             Check("The Bone Eater Syringe eats the bones", bonesBefore > 0f && Bones() < bonesBefore * 0.2f, $"bones {bonesBefore:0.##} -> {Bones():0.##}");
             Check("They fold up", standing - HeadY() > 0.7f, $"head {standing:0.00} -> {HeadY():0.00}");
+            var knee = Part(HumanoidNodeTagValue.LeftKnee);
+            Check("Their joints go loose", SyringeKinds.IsLoose(knee) && SyringeKinds.IsLoose(Part(HumanoidNodeTagValue.RightForearm)));
             yield return Wait(2.5f);
+            // The bones grow back with a Health Syringe, and the joints firm up again.
+            Syringes.Inject(SyringeKinds.Health, Part(HumanoidNodeTagValue.Spine), 2f);
+            for (float end = Now() + 8f; Now() < end && SyringeKinds.IsLoose(knee);)
+                yield return null;
+            Check("The joints firm up when the bones grow back", !SyringeKinds.IsLoose(knee), $"bones {Bones():0.##}");
             person.Delete();
 
             // Durability: a fresh wound grows back within a second or two.

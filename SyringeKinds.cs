@@ -9,6 +9,7 @@ using Il2CppInfrastructure.Project.AssetsHandlers.SFX;
 using Il2CppLVA.Creatures;
 using Il2CppLVA.Creatures.Parameters;
 using Il2CppLVA.Limbs;
+using Il2CppLVA.Organs.EffectorsPerception.Collectors;
 using Il2CppLVA.Organs.Variants.Human;
 using FruktSharedLibrary.UI;
 using UnityEngine;
@@ -31,6 +32,13 @@ namespace BunchAStuff
         internal static Syringes.Kind Rage { get; private set; }
 
         private const float BonesGo = 5f;
+        // How much of a limb's bone (0 to 100) is left when its joint goes loose, and when it firms up again.
+        private const float BoneGone = 15f, BoneBack = 80f;
+
+        // Limbs whose bone has been eaten, with how their joint was allowed to turn before, so it can be put back
+        // when the bone grows back.
+        private static readonly Dictionary<IntPtr, (AbstractLimb Limb, ConfigurableJoint Joint, ConfigurableJointMotion X, ConfigurableJointMotion Y, ConfigurableJointMotion Z)> Boneless = new();
+        private static float _boneCheck;
 
         internal static void Create()
         {
@@ -98,7 +106,7 @@ namespace BunchAStuff
                 });
 
             BoneEater = Syringes.Add("Bone Eater Syringe", new Color(1f, 0.62f, 0.25f), 30f,
-                "Dissolves every bone in the body over a few seconds, and they fold up like a sack. A Health Syringe grows the bones back.",
+                "Dissolves every bone in the body over a few seconds, and they fold up like a sack, bending any way at every joint. A Health Syringe grows the bones back.",
                 new[] { ("eats", "bones"), ("takes", "5 s") },
                 started: dose =>
                 {
@@ -110,11 +118,17 @@ namespace BunchAStuff
                     // Nothing holds them up once the bones are gone.
                     if (dose.Elapsed > BonesGo * 0.6f)
                         Hold<GeneralMuscleForce>(dose.Creature, 0f);
-                    if ((dose.Timer += dt) > 0.3f && dose.Creature.IsValid() && dose.Elapsed < BonesGo)
+                    if ((dose.Timer += dt) > 0.3f && dose.Creature.IsValid())
                     {
                         dose.Timer = 0f;
                         var limbs = dose.Creature.GetLimbs();
-                        if (limbs.Count > 0)
+                        // With the bone gone, a joint bends any way at all.
+                        foreach (var limb in limbs)
+                        {
+                            if (!Boneless.ContainsKey(limb.Pointer) && BoneLeft(limb) < BoneGone)
+                                Loosen(limb);
+                        }
+                        if (limbs.Count > 0 && dose.Elapsed < BonesGo)
                         {
                             var limb = limbs[Random.Range(0, limbs.Count)];
                             Effects.Burst(limb.GetPosition(), new Color(1f, 0.95f, 0.85f), 4, 0.8f, 0.02f, 0.5f, false, 2f, null, 180f, new Color(0.8f, 0.7f, 0.55f));
@@ -220,6 +234,75 @@ namespace BunchAStuff
                         Notifications.Warn(why);
                 });
         }
+
+        /// <summary>How much of the limb's bone is left, from 0 to 100 (100 for a limb without one).</summary>
+        private static float BoneLeft(AbstractLimb limb)
+        {
+            float total = 0f;
+            int count = 0;
+            foreach (var organ in limb.GetAllOrgans())
+            {
+                if (organ?.TryCast<Bone>() == null)
+                    continue;
+                total += organ.GetParameterValue<DestructibilityProgress>() ?? 100f;
+                count++;
+            }
+            return count > 0 ? total / count : 100f;
+        }
+
+        private static ConfigurableJoint JointOf(AbstractLimb limb) => limb.References?.Physics?.JointProvider?.m_joint;
+
+        private static void Loosen(AbstractLimb limb)
+        {
+            var joint = JointOf(limb);
+            if (!joint.Exists())
+                return;
+            Boneless[limb.Pointer] = (limb, joint, joint.angularXMotion, joint.angularYMotion, joint.angularZMotion);
+            Free(joint);
+        }
+
+        private static void Free(ConfigurableJoint joint)
+        {
+            if (joint.angularXMotion != ConfigurableJointMotion.Free)
+                joint.angularXMotion = ConfigurableJointMotion.Free;
+            if (joint.angularYMotion != ConfigurableJointMotion.Free)
+                joint.angularYMotion = ConfigurableJointMotion.Free;
+            if (joint.angularZMotion != ConfigurableJointMotion.Free)
+                joint.angularZMotion = ConfigurableJointMotion.Free;
+        }
+
+        /// <summary>Keeps boneless joints loose, and firms them up again once the bone has grown back.</summary>
+        internal static void Update(float dt)
+        {
+            if (Boneless.Count == 0 || (_boneCheck += dt) < 0.25f)
+                return;
+            _boneCheck = 0f;
+            foreach (var key in Boneless.Keys.ToList())
+            {
+                var (limb, joint, x, y, z) = Boneless[key];
+                if (!limb.Exists() || !joint.Exists())
+                {
+                    Boneless.Remove(key);
+                    continue;
+                }
+                if (BoneLeft(limb) > BoneBack)
+                {
+                    joint.angularXMotion = x;
+                    joint.angularYMotion = y;
+                    joint.angularZMotion = z;
+                    Boneless.Remove(key);
+                }
+                else
+                {
+                    // The game sometimes sets its joints up again; keep this one loose.
+                    Free(joint);
+                }
+            }
+        }
+
+        internal static bool IsLoose(AbstractLimb limb) => limb.Exists() && Boneless.ContainsKey(limb.Pointer);
+
+        internal static void Reset() => Boneless.Clear();
 
         private static void Fizz(Injection dose, int count)
         {

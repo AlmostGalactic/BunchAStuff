@@ -54,7 +54,7 @@ again to pull it out. Each syringe works once.
 | Health Syringe | Stops the bleeding, fills the blood back up and grows damaged flesh back over about 4 seconds. Limbs that came off stay off. |
 | Knockout Syringe | Out cold for 20 seconds. They come round afterwards if nothing else is wrong with them. |
 | Acid Syringe | Eats away the part it goes into, spreading unevenly out from the needle, then gets into the parts next to it. |
-| Bone Eater Syringe | Dissolves every bone in the body and they fold up. A Health Syringe grows the bones back. |
+| Bone Eater Syringe | Dissolves every bone in the body and they fold up, and joints without a bone bend any way. A Health Syringe grows the bones back. |
 | Durability Syringe | For a minute, lost flesh grows back within a second, wounds close and the blood stays topped up. |
 | Adrenaline Syringe | For 30 seconds no pain, and nothing knocks them out, not even blood loss. |
 | Float Syringe | Lighter than air for 8 seconds. |
