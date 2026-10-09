@@ -1,8 +1,8 @@
 # Changelog
 
-## Unreleased
+## 1.0.1
 
-Requires FruktSharedLibrary 0.3.8 or newer.
+Requires FruktSharedLibrary 0.4.0 or newer.
 
 - The guns and the syringes have their own tabs in the terminal, Guns and Syringes, instead of being mixed in with
   Weapons and Props.
