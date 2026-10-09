@@ -84,9 +84,27 @@ namespace BunchAStuff
                 yield return null;
             Check("The game has focus for real input", Application.isFocused);
 
-            Check("All six guns are under Weapons", Guns.All.Count == 6 && Guns.All.All(g => g.Registered && g.Item.CategoryName == "Weapons"),
+            Check("All six guns are under Guns", Guns.All.Count == 6 && Guns.All.All(g => g.Registered && g.Item.CategoryName == "Guns"),
                 string.Join(", ", Guns.All.Select(g => $"{g.Name} [{g.Item?.CategoryName}]")));
             Check("The guns have icons", Guns.All.All(g => g.Item?.Icon != null));
+            var categories = Inventory.Categories;
+            Check("The Guns and Syringes tabs are in the terminal", categories.Contains("Guns") && categories.Contains("Syringes"),
+                string.Join(", ", categories));
+            var terminal = GameServices.TryGet<Il2CppServices.UI.ITerminalItemsService>();
+            Inventory.OpenTerminal();
+            yield return Wait(1f);
+            foreach (var tab in new[] { "Guns", "Syringes" })
+            {
+                var category = Inventory.ItemsIn(tab).FirstOrDefault()?.Data?.Category;
+                if (category != null)
+                    terminal?.SetCategory(category);
+                yield return Wait(1f);
+                Check($"The {tab} tab opens", category != null && terminal?.Category?.Pointer == category.Pointer);
+                Shot("tab-" + tab.ToLowerInvariant());
+                yield return Wait(1f);
+            }
+            Inventory.CloseTerminal();
+            yield return Wait(0.5f);
             foreach (var (name, make, muzzle) in new (string, Func<GameObject>, Vector3)[]
             {
                 ("Moth-9", GunModels.Smg, GunModels.SmgMuzzle), ("Barrow-12", GunModels.Shotgun, GunModels.ShotgunMuzzle),
@@ -492,7 +510,7 @@ namespace BunchAStuff
             Creatures.DeleteAll();
             yield return Wait(1f);
             var health = SyringeKinds.Health;
-            Check("The Health Syringe is under Props", health.Prop.Registered && health.Prop.Item?.CategoryName == "Props", health.Prop.Item?.CategoryName);
+            Check("The Health Syringe is under Syringes", health.Prop.Registered && health.Prop.Item?.CategoryName == "Syringes", health.Prop.Item?.CategoryName);
 
             // A close look at one.
             var look = health.Prop.Place(LocalPlayer.CameraPosition + LocalPlayer.Forward * 0.45f,
@@ -577,7 +595,7 @@ namespace BunchAStuff
 
         private static IEnumerable SyringeKindTests()
         {
-            Check("All nine syringes are under Props", Syringes.All.Count == 9 && Syringes.All.All(k => k.Prop.Registered && k.Prop.Item?.CategoryName == "Props"),
+            Check("All nine syringes are under Syringes", Syringes.All.Count == 9 && Syringes.All.All(k => k.Prop.Registered && k.Prop.Item?.CategoryName == "Syringes"),
                 string.Join(", ", Syringes.All.Select(k => k.Name)));
             AbstractCreature person = null;
             float HeadY() => person.GetLimb(HumanoidNodeTagValue.Head)?.GetPosition().y ?? 0f;

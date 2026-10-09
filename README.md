@@ -2,17 +2,17 @@
 
 A bunch of stuff for FRUKT: six guns, fist fights, teams, syringes and bruises.
 
-Requires [FruktSharedLibrary](https://github.com/AlmostGalactic/FruktSharedLibrary) 0.3.7 or newer.
+Requires [FruktSharedLibrary](https://github.com/AlmostGalactic/FruktSharedLibrary) 0.3.8 or newer.
 
 ## Installing
 
 1. Install [MelonLoader](https://melonwiki.xyz/) 0.7 or newer for FRUKT.
-2. Put `FruktSharedLibrary.dll` (0.3.7 or newer) in `FRUKT/Mods`.
+2. Put `FruktSharedLibrary.dll` (0.3.8 or newer) in `FRUKT/Mods`.
 3. Put `BunchAStuff.dll` in `FRUKT/Mods`.
 
 ## Guns
 
-They're under Weapons in the terminal (I). Left click fires. The bullets are the game's own, so they wound the way
+They have their own **Guns** tab in the terminal (I). Left click fires. The bullets are the game's own, so they wound the way
 the Viper-17 and Grist-03 do: through the body, with blood, and out the other side. The models are made of voxels
 at the same size as the game's guns.
 
@@ -45,7 +45,7 @@ between all the teams as evenly as possible, or take everyone off their teams. Y
 
 ## Syringes
 
-Syringes are under **Props** in the terminal. Put one down, pick it up with the cursor and push the needle into
+Syringes have their own **Syringes** tab in the terminal. Put one down, pick it up with the cursor and push the needle into
 someone, or press **G** while you hold it to throw it, needle first, at whatever you're aiming at. It sticks in, the
 plunger goes down and the dose takes effect. Grab it again to pull it out. Each syringe works once. The throw key can
 be changed in the mod's settings.

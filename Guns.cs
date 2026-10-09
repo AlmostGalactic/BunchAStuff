@@ -34,6 +34,7 @@ namespace BunchAStuff
 
         internal static void Create()
         {
+            Inventory.AddCategory("Guns");
             Smg = Add("Moth-9", 0.075f, true, GunModels.SmgMuzzle, FireSmg, GunModels.Smg(), new Vector3(0.02f, -0.02f, 0.1f), 0.85f,
                 "Submachine gun. Fires for as long as the trigger is held.", ("caliber", "9mm"), ("fire", "automatic"));
 
@@ -56,7 +57,7 @@ namespace BunchAStuff
         private static ModGun Add(string name, float cooldown, bool automatic, Vector3 muzzle, Action<ModGun> fire, GameObject model,
             Vector3 hold, float scale, string description, params (string Key, string Value)[] card)
         {
-            var gun = Inventory.AddGun(name)
+            var gun = Inventory.AddGun(name, "Guns")
                 .WithCooldown(cooldown, automatic)
                 .WithMuzzle(muzzle)
                 .OnFire(fire);

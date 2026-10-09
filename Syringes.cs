@@ -114,7 +114,9 @@ namespace BunchAStuff
             Action<Injection> started = null, Action<Injection, float> working = null, Action<Injection> ended = null)
         {
             var kind = new Kind(name, liquid, seconds, started, working, ended);
-            var prop = Inventory.AddProp(name, Model(kind)).WithDescription(description);
+            Inventory.AddCategory("Syringes");
+            var prop = Inventory.AddProp(name, Model(kind));
+            prop.WithCategory("Syringes").WithDescription(description);
             foreach (var (key, value) in card)
                 prop.WithCard(key, value);
             prop.OnPlaced(copy => Track(kind, copy));
