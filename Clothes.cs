@@ -280,7 +280,7 @@ namespace BunchAStuff
             bool ours = Time.time - _heldAt < HeldGrace;
             foreach (var spawner in GameServices.FindObjects<HumanSpawner>())
             {
-                if (spawner.Exists() && Seen.Add(spawner.Pointer) && ours)
+                if (spawner.Exists() && spawner.gameObject.activeInHierarchy && Seen.Add(spawner.Pointer) && ours)
                     Clothed.Add(spawner);
             }
         }
@@ -294,28 +294,37 @@ namespace BunchAStuff
             // that's cut off becomes a creature of its own too, so only a complete body counts as new.
             if (creature.GetLimbCount() >= 15)
                 Strip(creature);
-            // Made with the one in the player's hand: it puts people where it's aimed, away from itself.
-            if (Time.time - _heldAt < HeldGrace)
-            {
-                Wait(creature);
-                return;
-            }
-            if (Clothed.Count == 0)
-                return;
+            // Born at a spawner standing in the world: dressed only if that one is a Clothed Human Spawner. The one
+            // in the player's hand and the hidden ones in the toolbar don't count here.
             FindSpawners();
+            var held = Toolbar.HeldObject;
             var at = creature.GetPosition();
             HumanSpawner nearest = null;
             float best = BirthDistance;
             foreach (var spawner in GameServices.FindObjects<HumanSpawner>())
             {
-                float distance = spawner.Exists() ? Vector3.Distance(spawner.transform.position, at) : float.MaxValue;
+                if (!spawner.Exists() || !spawner.gameObject.activeInHierarchy
+                    || (held.Exists() && spawner.transform.IsChildOf(held.transform)))
+                    continue;
+                float distance = Vector3.Distance(spawner.transform.position, at);
                 if (distance < best)
                 {
                     best = distance;
                     nearest = spawner;
                 }
             }
-            if (nearest != null && Clothed.Any(s => s.Pointer == nearest.Pointer))
+            if (nearest != null)
+            {
+                if (Clothed.Any(s => s.Pointer == nearest.Pointer))
+                    Wait(creature);
+                return;
+            }
+            // Made with the one in the player's hand: it puts people where it's aimed, away from itself. The game's
+            // own Human Spawner in hand leaves its people as they are.
+            bool ours = _spawner != null && _spawner.IsHeld;
+            if (!ours && held.Exists() && held.GetComponentInChildren<HumanSpawner>() != null)
+                return;
+            if (ours || Time.time - _heldAt < HeldGrace)
                 Wait(creature);
         }
 

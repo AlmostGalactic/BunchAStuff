@@ -1,5 +1,12 @@
 # Changelog
 
+## 1.0.3
+
+Requires FruktSharedLibrary 0.4.1 or newer.
+
+- The game's Human Spawner no longer makes dressed people while the Clothed Human Spawner is in the toolbar or in hand.
+  A spawner put down in the world decides for the people born at it.
+
 ## 1.0.2
 
 Requires FruktSharedLibrary 0.4.1 or newer.
