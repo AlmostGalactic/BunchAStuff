@@ -2,12 +2,12 @@
 
 A bunch of stuff for FRUKT: six guns, fist fights, teams, syringes and bruises.
 
-Requires [FruktSharedLibrary](https://github.com/AlmostGalactic/FruktSharedLibrary) 0.4.0 or newer.
+Requires [FruktSharedLibrary](https://github.com/AlmostGalactic/FruktSharedLibrary) 0.4.1 or newer.
 
 ## Installing
 
 1. Install [MelonLoader](https://melonwiki.xyz/) 0.7 or newer for FRUKT.
-2. Put `FruktSharedLibrary.dll` (0.4.0 or newer) in `FRUKT/Mods`.
+2. Put `FruktSharedLibrary.dll` (0.4.1 or newer) in `FRUKT/Mods`.
 3. Put `BunchAStuff.dll` in `FRUKT/Mods`.
 
 ## Guns
@@ -61,6 +61,19 @@ be changed in the mod's settings.
 | Float Syringe | Lighter than air for 8 seconds. |
 | Explosive Syringe | Ticks for 4 seconds, faster and faster, then blows up like a Tusk-40 rocket. |
 | Rage Syringe | They go for the nearest person from another team with their fists. |
+
+## Clothes
+
+The **Clothed Human Spawner** sits under Etc next to the game's Human Spawner and works the same way, but the people
+it makes come out dressed in everyday clothes: T-shirt and jeans, a hoodie, a flannel shirt, a polo and chinos, a
+sweater, a tank top and shorts, a tracksuit or a summer shirt.
+
+Right-click anyone and pick **Clothes > Work clothes** for an office worker, businessman, builder, doctor, police
+officer, chef, footballer, farmer or prisoner, or **Clothes > Everyday clothes** to change them back. **Take them off**
+undresses them.
+
+The clothes are part of the body: shots and cuts tear holes in them with bloody edges, a limb that comes off takes its
+sleeve or trouser leg with it, blood soaks into them, and a hat falls off a badly hurt head.
 
 ## Bruises
 

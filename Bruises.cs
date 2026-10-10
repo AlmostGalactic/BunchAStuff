@@ -87,7 +87,7 @@ namespace BunchAStuff
             if (!Settings.Bruising || !limb.Exists() || force <= 0f)
                 return;
             var creature = limb.GetCreature();
-            if (creature == null || !creature.IsLiving() || !creature.IsHuman())
+            if (creature == null || !creature.IsLiving() || !creature.IsHuman() || Clothes.Covers(limb, point))
                 return;
             var on = limb.GetMovingTransform();
             if (!on.Exists())
@@ -350,7 +350,7 @@ namespace BunchAStuff
         }
 
         // The limb's own paint layer, the one blood goes on.
-        private static VoxelMeshPaintModule PaintModule(AbstractLimb limb)
+        internal static VoxelMeshPaintModule PaintModule(AbstractLimb limb)
         {
             if (!limb.Exists() || limb.References == null)
                 return null;

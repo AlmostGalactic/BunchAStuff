@@ -22,6 +22,8 @@ namespace BunchAStuff
         private static readonly float[] ToneBrightness = { 0.93f, 1f, 1.07f };
 
         private readonly Dictionary<(int X, int Y, int Z), char> _cells = new();
+        private readonly HashSet<(int X, int Y, int Z)> _hidden = new();
+        private Func<int, int, int, bool> _hiddenWhere;
         private readonly Dictionary<char, int> _keyIndex = new();
         private readonly List<(Color Color, bool Glow)> _palette = new();
 
@@ -194,6 +196,36 @@ namespace BunchAStuff
 
         internal bool Has(int x, int y, int z) => _cells.ContainsKey((x, y, z));
 
+        /// <summary>The colour letter at a voxel, or a space for none.</summary>
+        internal char At(int x, int y, int z) => _cells.TryGetValue((x, y, z), out var key) ? key : (char)32;
+
+        /// <summary>Every voxel there is.</summary>
+        internal IEnumerable<(int X, int Y, int Z)> Cells => _cells.Keys;
+
+        /// <summary>
+        /// Replaces everything marked hidden with whatever the test says is filled, asked as the mesh is built. Faces
+        /// against those cells are left out.
+        /// </summary>
+        internal Voxels HideWhere(Func<int, int, int, bool> filled)
+        {
+            _hidden.Clear();
+            _hiddenWhere = filled;
+            return this;
+        }
+
+        /// <summary>
+        /// Marks a block as filled by something else (the body under a piece of clothing): nothing is drawn there,
+        /// and faces against it are left out.
+        /// </summary>
+        internal Voxels Hide(int x0, int x1, int y0, int y1, int z0, int z1)
+        {
+            for (int x = Math.Min(x0, x1); x <= Math.Max(x0, x1); x++)
+            for (int y = Math.Min(y0, y1); y <= Math.Max(y0, y1); y++)
+            for (int z = Math.Min(z0, z1); z <= Math.Max(z0, z1); z++)
+                _hidden.Add((x, y, z));
+            return this;
+        }
+
         internal int Count => _cells.Count;
 
         // ------------------------------------------------------------ the mesh
@@ -214,28 +246,45 @@ namespace BunchAStuff
             return root;
         }
 
-        private Mesh BuildMesh(string name)
+        // Shared by every build, so rebuilding a mesh allocates nothing new on the managed side.
+        private static readonly List<Vector3> BuildVertices = new(), BuildNormals = new();
+        private static readonly List<Vector2> BuildUvs = new();
+        private static readonly List<int> BuildTriangles = new();
+
+        /// <summary>
+        /// The model as a mesh with only the outside faces. Given a mesh, it's filled again in place (for a model that
+        /// changes, like torn clothes) instead of a new one being made.
+        /// </summary>
+        internal Mesh BuildMesh(string name, Mesh into = null)
         {
-            var vertices = new List<Vector3>();
-            var normals = new List<Vector3>();
-            var uvs = new List<Vector2>();
-            var triangles = new List<int>();
+            var vertices = BuildVertices;
+            var normals = BuildNormals;
+            var uvs = BuildUvs;
+            var triangles = BuildTriangles;
+            vertices.Clear();
+            normals.Clear();
+            uvs.Clear();
+            triangles.Clear();
             float width = _palette.Count * Tones;
+            var hiddenWhere = _hiddenWhere;
+            bool anyHidden = _hidden.Count > 0;
 
             foreach (var cell in _cells)
             {
                 var (x, y, z) = cell.Key;
-                int tone = Math.Abs(HashCode.Combine(x, y, z)) % Tones;
-                float u = (_keyIndex[cell.Value] * Tones + tone + 0.5f) / width;
+                int tone = ((x * 73856093) ^ (y * 19349663) ^ (z * 83492791)) & int.MaxValue;
+                float u = (_keyIndex[cell.Value] * Tones + tone % Tones + 0.5f) / width;
                 foreach (var face in Faces)
                 {
-                    if (_cells.ContainsKey((x + face.Normal.x, y + face.Normal.y, z + face.Normal.z)))
+                    int nx = x + face.Normal.x, ny = y + face.Normal.y, nz = z + face.Normal.z;
+                    if (_cells.ContainsKey((nx, ny, nz)) || (anyHidden && _hidden.Contains((nx, ny, nz))) || (hiddenWhere != null && hiddenWhere(nx, ny, nz)))
                         continue;
                     int first = vertices.Count;
+                    var normal = new Vector3(face.Normal.x, face.Normal.y, face.Normal.z);
                     foreach (var corner in face.Corners)
                     {
                         vertices.Add(new Vector3((x + corner.x - 0.5f) * Size, (y + corner.y - 0.5f) * Size, (z + corner.z - 0.5f) * Size));
-                        normals.Add(new Vector3(face.Normal.x, face.Normal.y, face.Normal.z));
+                        normals.Add(normal);
                         uvs.Add(new Vector2(u, 0.5f));
                     }
                     triangles.Add(first);
@@ -247,9 +296,9 @@ namespace BunchAStuff
                 }
             }
 
-            var mesh = new Mesh { name = name };
-            if (vertices.Count > 65535)
-                mesh.indexFormat = IndexFormat.UInt32;
+            var mesh = into != null ? into : new Mesh { name = name };
+            mesh.Clear();
+            mesh.indexFormat = vertices.Count > 65535 ? IndexFormat.UInt32 : IndexFormat.UInt16;
             mesh.vertices = vertices.ToArray();
             mesh.normals = normals.ToArray();
             mesh.uv = uvs.ToArray();
@@ -258,7 +307,7 @@ namespace BunchAStuff
             return mesh;
         }
 
-        private Material BuildMaterial(string name)
+        internal Material BuildMaterial(string name)
         {
             int width = _palette.Count * Tones;
             var colours = new Texture2D(width, 1, TextureFormat.RGBA32, false) { filterMode = FilterMode.Point, wrapMode = TextureWrapMode.Clamp, name = name + " colours" };

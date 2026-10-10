@@ -1,5 +1,18 @@
 # Changelog
 
+## 1.0.2
+
+Requires FruktSharedLibrary 0.4.1 or newer.
+
+- The Clothed Human Spawner, under Etc next to the Human Spawner. The people it makes come out in everyday clothes:
+  T-shirt and jeans, a hoodie, a flannel shirt, a polo and chinos, a sweater, a tank top and shorts, a tracksuit or a
+  summer shirt.
+- Work clothes from the right-click menu (Clothes > Work clothes): office worker, businessman, builder, doctor, police
+  officer, chef, footballer, farmer and prisoner. Clothes > Everyday clothes changes them back, and anyone can be
+  dressed this way.
+- The clothes are voxel models on the body. Shots and cuts tear holes in them with bloody edges, a cut-off limb takes
+  its sleeve or trouser leg with it, blood gets on them, and a hat falls off a badly hurt head.
+
 ## 1.0.1
 
 Requires FruktSharedLibrary 0.4.0 or newer.

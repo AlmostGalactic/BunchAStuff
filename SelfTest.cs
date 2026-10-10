@@ -32,7 +32,7 @@ namespace BunchAStuff
         private static readonly List<string> Report = new();
         private static readonly List<GameObject> Spawned = new();
         private static int _passed, _failed;
-        private static bool _quit, _started;
+        private static bool _quit, _started, _clothesOnly;
         private static string FlagPath => Path.Combine(MelonEnvironment.UserDataDirectory, "BunchAStuff.selftest");
         private static string LogPath => Path.Combine(MelonEnvironment.UserDataDirectory, "BunchAStuff.selftest.log");
 
@@ -40,7 +40,9 @@ namespace BunchAStuff
         {
             if (!File.Exists(FlagPath))
                 return;
-            _quit = File.ReadAllText(FlagPath).IndexOf("quit", StringComparison.OrdinalIgnoreCase) >= 0;
+            string flag = File.ReadAllText(FlagPath);
+            _quit = flag.IndexOf("quit", StringComparison.OrdinalIgnoreCase) >= 0;
+            _clothesOnly = flag.IndexOf("clothes", StringComparison.OrdinalIgnoreCase) >= 0;
             Log("Enabled; the Yard loads from the main menu.");
             GameEvents.MainMenuEntered += () =>
             {
@@ -83,6 +85,12 @@ namespace BunchAStuff
             for (float end = Now() + 30f; !Application.isFocused && Now() < end;)
                 yield return null;
             Check("The game has focus for real input", Application.isFocused);
+            if (_clothesOnly)
+            {
+                foreach (var step in ClothesTests())
+                    yield return step;
+                yield break;
+            }
 
             Check("All six guns are under Guns", Guns.All.Count == 6 && Guns.All.All(g => g.Registered && g.Item.CategoryName == "Guns"),
                 string.Join(", ", Guns.All.Select(g => $"{g.Name} [{g.Item?.CategoryName}]")));
@@ -136,6 +144,163 @@ namespace BunchAStuff
                 yield return step;
             foreach (var step in BruiseTests())
                 yield return step;
+        }
+
+        private static IEnumerable ClothesTests()
+        {
+            var tool = Clothes.Spawner;
+            Check("The Clothed Human Spawner is in the terminal", tool != null && tool.Registered && tool.CopyOf != null,
+                $"{tool?.Item?.Name} [{tool?.Item?.CategoryName}]");
+            Check("It has the Human Spawner's icon", tool?.Item?.Icon != null, tool?.Item?.Icon?.name);
+            int slot = tool?.Item != null ? Toolbar.Give(tool.Item) : -1;
+            Toolbar.Select(slot);
+            yield return Wait(1.5f);
+            var held = Toolbar.HeldObject;
+            Check("Holding it holds a working Human Spawner", tool != null && tool.IsHeld
+                && held != null && held.GetComponent<Il2CppPlayer.Appearances.God.InventoryItems.HumanSpawnerGII>() != null, held?.name);
+            yield return ShotAndWait("clothes-held");
+            // Put a spawner down with a real click, then have it make someone.
+            Click("bas-clothes-place");
+            yield return Wait(4f);
+            var spawners = GameServices.FindObjects<Il2CppSpawnables.Misc.HumanSpawner>();
+            Il2CppSpawnables.Misc.HumanSpawner placed = spawners.Where(s => s.Exists())
+                .OrderBy(s => Vector3.Distance(s.transform.position, LocalPlayer.GetPointInFront(4f))).FirstOrDefault();
+            Check("A spawner is put down", placed != null, $"{spawners.Count} spawners");
+            var clicked = Creatures.Humans.Cast<AbstractCreature>().OrderBy(c => Vector3.Distance(c.GetPosition(), LocalPlayer.GetPointInFront(6f))).FirstOrDefault();
+            var clickedChest = clicked?.GetLimb(HumanoidNodeTagValue.Spine);
+            Check("Clicking with it makes someone dressed", clickedChest != null && Clothes.Covers(clickedChest, clickedChest.GetPosition()),
+                $"{Creatures.Count} people");
+            yield return ShotAndWait("clothes-placed");
+            AbstractCreature born = null;
+            void Watch(AbstractCreature c) => born ??= c;
+            GameEvents.CreatureSpawned += Watch;
+            var pose = placed != null ? placed.BirthPose : default;
+            if (placed != null)
+                placed.SpawnHuman(pose.position, pose.rotation);
+            for (float end = Now() + 8f; Now() < end && (born == null || Clothes.Busy || Clothes.Worn < 6);)
+                yield return null;
+            GameEvents.CreatureSpawned -= Watch;
+            Check("Someone comes out of it dressed", born != null && Clothes.Worn >= 6, $"{Clothes.Worn} pieces worn");
+            yield return Wait(1f);
+            yield return ShotAndWait("clothes-born");
+            // One of each outfit, in two rows, for a look from the front and the back.
+            Creatures.DeleteAll();
+            yield return Wait(1f);
+            var right = LocalPlayer.CameraRotation * Vector3.right;
+            var names = Outfits.Names;
+            var people = new List<AbstractCreature>();
+            for (int i = 0; i < names.Length; i++)
+            {
+                int row = i / 6, column = i % 6;
+                AbstractCreature person = null;
+                var at = LocalPlayer.GetPointInFront(6f + row * 4f) + right * (column - 2.5f) * (1.4f + row * 0.5f);
+                foreach (var step in SpawnHuman(at, c => person = c))
+                    yield return step;
+                if (person != null)
+                {
+                    Clothes.Dress(person, Outfits.Named(names[i]));
+                    people.Add(person);
+                }
+            }
+            for (float end = Now() + 15f; Clothes.Busy && Now() < end;)
+                yield return null;
+            Check("Every outfit is made", people.Count == names.Length && !Clothes.Busy && Clothes.Worn >= names.Length * 6,
+                $"{people.Count} of {names.Length}, {Clothes.Worn} pieces");
+            yield return Wait(1f);
+            yield return ShotAndWait("clothes-lineup");
+            Clothes.SpentMs = Clothes.WorstMs = 0;
+            Clothes.SpentFrames = 0;
+            yield return Wait(3f);
+            Check("Clothes cost little while nothing happens", Clothes.SpentMs / Math.Max(1, Clothes.SpentFrames) < 0.3,
+                $"{Clothes.SpentMs / Math.Max(1, Clothes.SpentFrames):0.000} ms a frame, worst {Clothes.WorstMs:0.00} ms, {Clothes.Worn} pieces, raw voxels {Clothes.RawVoxels}, hooks {Clothes.Hooked}");
+            foreach (var person in people)
+                person.SetFacing((person.GetFacing() ?? 0f) + 180f);
+            yield return Wait(2.5f);
+            yield return ShotAndWait("clothes-backs");
+            for (int i = 0; i < people.Count; i++)
+            {
+                people[i].SetFacing((people[i].GetFacing() ?? 0f) + 180f);
+                Hang(people[i], 2.2f);
+                yield return Wait(1.2f);
+                yield return ShotAndWait("clothes-close-" + names[i].ToLowerInvariant().Replace(' ', '-'));
+                if (i < people.Count - 1)
+                {
+                    people[i].Delete();
+                    yield return Wait(0.3f);
+                }
+            }
+            // The last one gets hurt: the cloth over the wounds tears, and the hat comes off the head.
+            var victim = people.LastOrDefault();
+            var chest = victim?.GetLimb(HumanoidNodeTagValue.Spine);
+            int before = Clothes.ClothOn(chest);
+            float shape = chest != null ? chest.GetWholeness() : 0f;
+            Clothes.SpentMs = Clothes.WorstMs = 0;
+            Clothes.SpentFrames = 0;
+            if (chest != null)
+            {
+                // Real bullets, fired from just in front of the chest: a shotgun blast and two rifle rounds.
+                var on = chest.GetMovingTransform();
+                var front = on.TransformDirection(Vector3.forward);
+                var at = on.TransformPoint(new Vector3(0.05f, 0.08f, 0f));
+                for (int i = 0; i < 8; i++)
+                    FruktSharedLibrary.Combat.Bullets.Launch(at + front, FruktSharedLibrary.Combat.Bullets.Spread(-front, 4f), FruktSharedLibrary.Combat.Bullets.Caliber.Pellet);
+                FruktSharedLibrary.Combat.Bullets.Launch(on.TransformPoint(new Vector3(-0.12f, -0.02f, 0f)) + front, -front, FruktSharedLibrary.Combat.Bullets.Caliber.Rifle, 600f);
+                FruktSharedLibrary.Combat.Bullets.Launch(on.TransformPoint(new Vector3(0.14f, 0.15f, 0f)) + front, -front, FruktSharedLibrary.Combat.Bullets.Caliber.Rifle, 600f);
+            }
+            yield return Wait(2f);
+            Log($"Chest wholeness {shape:0.0} -> {(chest != null ? chest.GetWholeness() : 0f):0.0}");
+            Log($"Clothes while shot: {Clothes.SpentMs / Math.Max(1, Clothes.SpentFrames):0.000} ms a frame, worst {Clothes.WorstMs:0.00} ms");
+            Check("Cloth over a wound tears", chest != null && Clothes.ClothOn(chest) < before && Clothes.ClothOn(chest) > before / 3,
+                $"{before} -> {Clothes.ClothOn(chest)} voxels");
+            yield return Wait(2f);
+            Check("The game's blood gets on the clothes", Clothes.BloodStamps > 0, $"{Clothes.BloodStamps} of {Clothes.AllStamps} stamps");
+            yield return ShotAndWait("clothes-torn");
+            // An arm cut off keeps its sleeve, and the body keeps the rest.
+            var arm = victim?.GetLimb(HumanoidNodeTagValue.LeftArm);
+            int sleeve = Clothes.ClothOn(arm), shirt = Clothes.ClothOn(chest);
+            arm?.Detach();
+            yield return Wait(2f);
+            Check("A cut-off arm keeps its sleeve and the body its clothes", arm != null && sleeve > 0 && Clothes.ClothOn(arm) > sleeve / 2
+                && Clothes.ClothOn(chest) > shirt / 2 && Clothes.ClothOn(victim.GetLimb(HumanoidNodeTagValue.LeftLeg)) > 0,
+                $"sleeve {sleeve} -> {Clothes.ClothOn(arm)}, shirt {shirt} -> {Clothes.ClothOn(chest)}");
+            yield return ShotAndWait("clothes-arm-off");
+            // A thigh cut through the middle: the trouser leg on the part that comes off goes with it.
+            var thigh = victim?.GetLimb(HumanoidNodeTagValue.RightLeg);
+            int legBefore = Clothes.ClothOn(thigh);
+            if (thigh != null)
+            {
+                var on = thigh.GetMovingTransform();
+                for (float x = -0.07f; x <= 0.071f; x += 0.035f)
+                for (float z = -0.07f; z <= 0.071f; z += 0.035f)
+                    FruktSharedLibrary.Combat.Damage.Apply(thigh, on.TransformPoint(new Vector3(x, -0.2f, z)), 2, 100000f);
+            }
+            yield return Wait(2.5f);
+            Check("Cutting through a leg takes its cloth with the part that comes off", Clothes.CutOff > 0 && Clothes.ClothCutOff > 50,
+                $"{Clothes.CutOff} cut-off pieces, {Clothes.ClothCutOff} voxels on them, leg {legBefore} -> {Clothes.ClothOn(thigh)}");
+            yield return ShotAndWait("clothes-leg-cut");
+            var withHat = Outfits.Names.Select(Outfits.Named).First(o => o.Hat != null).Name;
+            AbstractCreature hatted = null;
+            foreach (var step in SpawnHuman(LocalPlayer.GetPointInFront(4f) + right * 1.5f, c => hatted = c))
+                yield return step;
+            Clothes.Dress(hatted, Outfits.Named(withHat));
+            for (float end = Now() + 5f; Clothes.Busy && Now() < end;)
+                yield return null;
+            Check("A hat is worn", Clothes.HatOn(hatted), withHat);
+            var head = hatted?.GetLimb(HumanoidNodeTagValue.Head);
+            if (head != null)
+            {
+                // Rifle rounds through the top of the head, under the hat.
+                var on = head.GetMovingTransform();
+                foreach (var (x, y) in new[] { (-0.09f, 0.2f), (0f, 0.2f), (0.09f, 0.2f), (-0.05f, 0.14f), (0.05f, 0.14f), (0f, 0.08f) })
+                {
+                    var at = on.TransformPoint(new Vector3(x, y, 0f));
+                    var across = on.TransformDirection(Vector3.forward);
+                    FruktSharedLibrary.Combat.Bullets.Launch(at + across, -across, FruktSharedLibrary.Combat.Bullets.Caliber.Rifle, 600f);
+                }
+            }
+            yield return Wait(2f);
+            Check("A badly hurt head loses its hat", !Clothes.HatOn(hatted), $"head {head?.GetWholeness():0.0}");
+            yield return ShotAndWait("clothes-hat-off");
         }
 
         private static IEnumerable BruiseTests()
