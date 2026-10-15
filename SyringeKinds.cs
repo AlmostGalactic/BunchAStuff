@@ -9,6 +9,7 @@ using Il2CppInfrastructure.Project.AssetsHandlers.SFX;
 using Il2CppLVA.Creatures;
 using Il2CppLVA.Creatures.Parameters;
 using Il2CppLVA.Limbs;
+using Il2CppLVA.NodesHierarchy.Benchmark.Variants;
 using Il2CppLVA.Organs.EffectorsPerception.Collectors;
 using Il2CppLVA.Organs.Variants.Human;
 using FruktSharedLibrary.UI;
@@ -43,12 +44,13 @@ namespace BunchAStuff
         internal static void Create()
         {
             Health = Syringes.Add("Health Syringe", new Color(0.25f, 0.95f, 0.35f), 4f,
-                "Stops the bleeding, fills the blood back up and grows damaged flesh back over a few seconds. Limbs that came off stay off.",
+                "Stops the bleeding, inside and out, sets broken bones, wakes them up, fills the blood back up and grows damaged flesh back over a few seconds. Limbs that came off stay off.",
                 new[] { ("bleeding", "stops"), ("blood", "refills"), ("flesh", "grows back"), ("takes", "4 s") },
                 started: dose =>
                 {
                     dose.Creature.StopBleeding();
                     Bruises.Heal(dose.Creature);
+                    Injuries.Heal(dose.Creature);
                     // Only the limbs they still have: anything that came off stays off.
                     Tissue.Regrow(dose.Creature, dose.Seconds);
                     Syringes.Glow(dose, 24);
@@ -71,7 +73,7 @@ namespace BunchAStuff
                 new[] { ("out for", "20 s") },
                 started: dose => Syringes.Glow(dose, 12),
                 working: (dose, dt) => Hold<CognitionLevel>(dose.Creature, 0f),
-                ended: dose => Recalculate<CognitionLevel>(dose.Creature));
+                ended: dose => Injuries.WakeUp(dose.Creature));
 
             Acid = Syringes.Add("Acid Syringe", new Color(0.75f, 1f, 0.1f), 7f,
                 "Eats away the part it goes into, spreading out from the needle, then gets into the parts next to it.",
@@ -225,6 +227,78 @@ namespace BunchAStuff
                         Guns.Detonate(at.Value);
                 });
 
+            Syringes.Add("Poison Syringe", new Color(0.45f, 0.62f, 0.08f), 30f,
+                "Works slowly from the inside: they bleed inside, cough up blood and weaken over half a minute.",
+                new[] { ("takes", "30 s"), ("bleeds", "inside") },
+                started: dose =>
+                {
+                    Syringes.Glow(dose, 10);
+                    var chest = dose.Creature.GetLimb(HumanoidNodeTagValue.Spine);
+                    if (chest != null)
+                        Injuries.BleedInside(chest, 0.4f);
+                },
+                working: (dose, dt) =>
+                {
+                    float capacity = dose.Creature.GetBloodCapacity();
+                    if (capacity > 0f)
+                        dose.Creature.DrainBlood(capacity * 0.004f * dt);
+                    if ((dose.Timer += dt) < 4f)
+                        return;
+                    dose.Timer = 0f;
+                    var limbs = dose.Creature.GetLimbs();
+                    if (limbs.Count > 0)
+                        Injuries.BleedInside(limbs[Random.Range(0, limbs.Count)], 0.2f);
+                });
+
+            Syringes.Add("Blood Thinner Syringe", new Color(0.55f, 0.02f, 0.12f), 0f,
+                "Their blood stops clotting: every wound they have, and every one they get next, pours.",
+                new[] { ("wounds", "pour") },
+                started: dose =>
+                {
+                    Syringes.Glow(dose, 10);
+                    foreach (var limb in dose.Creature.GetLimbs())
+                        limb.AddBleeding(1.5f);
+                });
+
+            Syringes.Add("Strength Syringe", new Color(1f, 0.55f, 0.1f), 30f,
+                "For half a minute their punches land more than twice as hard. Give it to a fighter.",
+                new[] { ("punches", "x2.2"), ("lasts", "30 s") },
+                started: dose =>
+                {
+                    Syringes.Glow(dose, 16);
+                    Fights.Boost(dose.Creature, dose.Seconds);
+                });
+
+            Syringes.Add("Paralysis Syringe", new Color(0.48f, 0.72f, 1f), 15f,
+                "Every muscle goes slack for 15 seconds. They're awake the whole time, and get back up afterwards.",
+                new[] { ("lasts", "15 s") },
+                started: dose => Syringes.Glow(dose, 12),
+                working: (dose, dt) => Hold<GeneralMuscleForce>(dose.Creature, 0f),
+                ended: dose => Injuries.WakeUp(dose.Creature));
+
+            Syringes.Add("Berserk Syringe", new Color(1f, 0.08f, 0.08f), 30f,
+                "They go for anyone near them, their own team too, hitting twice as hard, for half a minute.",
+                new[] { ("fights", "anyone"), ("lasts", "30 s") },
+                started: dose =>
+                {
+                    Syringes.Glow(dose, 16);
+                    Fights.GoBerserk(dose.Creature, dose.Seconds);
+                });
+
+            Syringes.Add("Bone Breaker Syringe", new Color(0.94f, 0.9f, 0.78f), 8f,
+                "Snaps the bones in their arms and legs, one after another, over a few seconds.",
+                new[] { ("breaks", "arms and legs"), ("takes", "8 s") },
+                started: dose => Syringes.Glow(dose, 10),
+                working: (dose, dt) =>
+                {
+                    if ((dose.Timer += dt) < 1.1f)
+                        return;
+                    dose.Timer = 0f;
+                    var whole = dose.Creature.GetLimbs().Where(l => Injuries.Breakable(l) && !Injuries.IsBroken(l)).ToList();
+                    if (whole.Count > 0)
+                        Injuries.BreakNow(whole[Random.Range(0, whole.Count)]);
+                });
+
             Rage = Syringes.Add("Rage Syringe", new Color(0.9f, 0.1f, 0.45f), 0f,
                 "They go for the nearest person from another team with their fists.",
                 new[] { ("fights", "the nearest person") },
@@ -317,14 +391,14 @@ namespace BunchAStuff
         }
 
         /// <summary>Holds one of the creature's values where it is, for this frame.</summary>
-        private static void Hold<T>(AbstractCreature creature, float value) where T : Il2CppLVA.Core.LVAInternalParameter
+        internal static void Hold<T>(AbstractCreature creature, float value) where T : Il2CppLVA.Core.LVAInternalParameter
         {
             if (creature.IsValid())
                 creature.GetParameter<T>()?.ForceValue(value);
         }
 
         /// <summary>Lets the game work the value out again from the state of the body.</summary>
-        private static void Recalculate<T>(AbstractCreature creature) where T : Il2CppLVA.Core.LVAInternalParameter
+        internal static void Recalculate<T>(AbstractCreature creature) where T : Il2CppLVA.Core.LVAInternalParameter
         {
             if (creature.IsValid())
                 creature.GetParameter<T>()?.DependenciesSolver?.UpdateDependedValue();

@@ -250,12 +250,20 @@ namespace BunchAStuff
         private static readonly List<Vector3> BuildVertices = new(), BuildNormals = new();
         private static readonly List<Vector2> BuildUvs = new();
         private static readonly List<int> BuildTriangles = new();
+        private static int[] _mask = new int[0];
 
         /// <summary>
-        /// The model as a mesh with only the outside faces. Given a mesh, it's filled again in place (for a model that
-        /// changes, like torn clothes) instead of a new one being made.
+        /// The shading pattern repeats every this many voxels. Faces are joined into bigger rectangles, but never
+        /// across a tile's edge, so each voxel still shows its own tone from the colours texture.
         /// </summary>
-        internal Mesh BuildMesh(string name, Mesh into = null)
+        private const int Tile = 16;
+
+        /// <summary>
+        /// The model as a mesh with only the outside faces. Neighbouring faces of the same colour are joined into
+        /// rectangles, which draws the same picture with a fraction of the vertices. Given a mesh, it's filled again
+        /// in place (for a model that changes, like torn clothes) instead of a new one being made.
+        /// </summary>
+        internal Mesh BuildMesh(string name, Mesh into = null, bool coloursOnly = false)
         {
             var vertices = BuildVertices;
             var normals = BuildNormals;
@@ -265,34 +273,122 @@ namespace BunchAStuff
             normals.Clear();
             uvs.Clear();
             triangles.Clear();
-            float width = _palette.Count * Tones;
-            var hiddenWhere = _hiddenWhere;
-            bool anyHidden = _hidden.Count > 0;
 
-            foreach (var cell in _cells)
+            if (_cells.Count > 0)
             {
-                var (x, y, z) = cell.Key;
-                int tone = ((x * 73856093) ^ (y * 19349663) ^ (z * 83492791)) & int.MaxValue;
-                float u = (_keyIndex[cell.Value] * Tones + tone % Tones + 0.5f) / width;
-                foreach (var face in Faces)
+                int minX = int.MaxValue, minY = int.MaxValue, minZ = int.MaxValue, maxX = int.MinValue, maxY = int.MinValue, maxZ = int.MinValue;
+                foreach (var (x, y, z) in _cells.Keys)
                 {
-                    int nx = x + face.Normal.x, ny = y + face.Normal.y, nz = z + face.Normal.z;
-                    if (_cells.ContainsKey((nx, ny, nz)) || (anyHidden && _hidden.Contains((nx, ny, nz))) || (hiddenWhere != null && hiddenWhere(nx, ny, nz)))
-                        continue;
-                    int first = vertices.Count;
-                    var normal = new Vector3(face.Normal.x, face.Normal.y, face.Normal.z);
-                    foreach (var corner in face.Corners)
+                    minX = Math.Min(minX, x); maxX = Math.Max(maxX, x);
+                    minY = Math.Min(minY, y); maxY = Math.Max(maxY, y);
+                    minZ = Math.Min(minZ, z); maxZ = Math.Max(maxZ, z);
+                }
+                var min = new[] { minX, minY, minZ };
+                var max = new[] { maxX, maxY, maxZ };
+                float width = _palette.Count * Tile;
+                var hiddenWhere = _hiddenWhere;
+                bool anyHidden = _hidden.Count > 0;
+                var cell = new int[3];
+                var next = new int[3];
+
+                for (int d = 0; d < 3; d++)
+                {
+                    // Faces looking along axis d; the rectangles are laid out over the other two, u and v.
+                    int ua = (d + 1) % 3, va = (d + 2) % 3;
+                    int lu = max[ua] - min[ua] + 1, lv = max[va] - min[va] + 1;
+                    if (_mask.Length < lu * lv)
+                        _mask = new int[lu * lv];
+                    var mask = _mask;
+                    foreach (int sign in new[] { 1, -1 })
                     {
-                        vertices.Add(new Vector3((x + corner.x - 0.5f) * Size, (y + corner.y - 0.5f) * Size, (z + corner.z - 0.5f) * Size));
-                        normals.Add(normal);
-                        uvs.Add(new Vector2(u, 0.5f));
+                        var normal = Vector3.zero;
+                        normal[d] = sign;
+                        for (int slice = min[d]; slice <= max[d]; slice++)
+                        {
+                            // Which voxels in this slice show a face this way, by colour (0 for none).
+                            bool any = false;
+                            for (int v = 0; v < lv; v++)
+                            for (int u = 0; u < lu; u++)
+                            {
+                                cell[d] = slice;
+                                cell[ua] = min[ua] + u;
+                                cell[va] = min[va] + v;
+                                int m = 0;
+                                if (_cells.TryGetValue((cell[0], cell[1], cell[2]), out char key))
+                                {
+                                    next[0] = cell[0];
+                                    next[1] = cell[1];
+                                    next[2] = cell[2];
+                                    next[d] += sign;
+                                    var n = (next[0], next[1], next[2]);
+                                    if (!_cells.ContainsKey(n) && !(anyHidden && _hidden.Contains(n))
+                                        && !(hiddenWhere != null && hiddenWhere(n.Item1, n.Item2, n.Item3)))
+                                    {
+                                        m = _keyIndex[key] + 1;
+                                        any = true;
+                                    }
+                                }
+                                mask[v * lu + u] = m;
+                            }
+                            if (!any)
+                                continue;
+                            float plane = (slice + 0.5f * sign) * Size;
+                            for (int v = 0; v < lv; v++)
+                            for (int u = 0; u < lu;)
+                            {
+                                int m = mask[v * lu + u];
+                                if (m == 0)
+                                {
+                                    u++;
+                                    continue;
+                                }
+                                // Grow the rectangle along u, then along v, while the colour holds and it stays in
+                                // one tile of the pattern.
+                                int au = min[ua] + u, av = min[va] + v;
+                                int tileU = FloorTile(au), tileV = FloorTile(av);
+                                int w = 1;
+                                while (u + w < lu && mask[v * lu + u + w] == m && FloorTile(au + w) == tileU)
+                                    w++;
+                                int h = 1;
+                                while (v + h < lv && FloorTile(av + h) == tileV)
+                                {
+                                    bool row = true;
+                                    for (int k = 0; k < w && row; k++)
+                                        row = mask[(v + h) * lu + u + k] == m;
+                                    if (!row)
+                                        break;
+                                    h++;
+                                }
+                                for (int dv = 0; dv < h; dv++)
+                                for (int du = 0; du < w; du++)
+                                    mask[(v + dv) * lu + u + du] = 0;
+
+                                float u0 = (au - 0.5f) * Size, u1 = (au + w - 0.5f) * Size;
+                                float v0 = (av - 0.5f) * Size, v1 = (av + h - 0.5f) * Size;
+                                float tu0 = ((m - 1) * Tile + (au - tileU)) / width, tu1 = ((m - 1) * Tile + (au + w - tileU)) / width;
+                                float tv0 = (av - tileV) / (float)Tile, tv1 = (av + h - tileV) / (float)Tile;
+                                int first = vertices.Count;
+                                Corner(vertices, uvs, d, ua, va, plane, u0, v0, tu0, tv0);
+                                Corner(vertices, uvs, d, ua, va, plane, u1, v0, tu1, tv0);
+                                Corner(vertices, uvs, d, ua, va, plane, u1, v1, tu1, tv1);
+                                Corner(vertices, uvs, d, ua, va, plane, u0, v1, tu0, tv1);
+                                for (int c = 0; c < 4; c++)
+                                    normals.Add(normal);
+                                // Wound so the front faces outwards: u then v goes round the +d axis.
+                                if (sign > 0)
+                                {
+                                    triangles.Add(first); triangles.Add(first + 1); triangles.Add(first + 2);
+                                    triangles.Add(first); triangles.Add(first + 2); triangles.Add(first + 3);
+                                }
+                                else
+                                {
+                                    triangles.Add(first); triangles.Add(first + 2); triangles.Add(first + 1);
+                                    triangles.Add(first); triangles.Add(first + 3); triangles.Add(first + 2);
+                                }
+                                u += w;
+                            }
+                        }
                     }
-                    triangles.Add(first);
-                    triangles.Add(first + 1);
-                    triangles.Add(first + 2);
-                    triangles.Add(first);
-                    triangles.Add(first + 2);
-                    triangles.Add(first + 3);
                 }
             }
 
@@ -307,22 +403,39 @@ namespace BunchAStuff
             return mesh;
         }
 
+        private static int FloorTile(int a) => (int)Math.Floor(a / (double)Tile) * Tile;
+
+        private static void Corner(List<Vector3> vertices, List<Vector2> uvs, int d, int ua, int va, float plane, float u, float v, float tu, float tv)
+        {
+            var at = Vector3.zero;
+            at[d] = plane;
+            at[ua] = u;
+            at[va] = v;
+            vertices.Add(at);
+            uvs.Add(new Vector2(tu, tv));
+        }
+
+        // The tone of each voxel in the repeating pattern.
+        private static int ToneAt(int u, int v) => (((u * 73856093) ^ (v * 19349663) ^ 83492791) & int.MaxValue) % Tones;
+
         internal Material BuildMaterial(string name)
         {
-            int width = _palette.Count * Tones;
-            var colours = new Texture2D(width, 1, TextureFormat.RGBA32, false) { filterMode = FilterMode.Point, wrapMode = TextureWrapMode.Clamp, name = name + " colours" };
-            var glow = new Texture2D(width, 1, TextureFormat.RGBA32, false) { filterMode = FilterMode.Point, wrapMode = TextureWrapMode.Clamp, name = name + " glow" };
+            // Each colour gets a tile of the shading pattern: every voxel one of its tones.
+            int width = Math.Max(1, _palette.Count) * Tile;
+            var colours = new Texture2D(width, Tile, TextureFormat.RGBA32, false) { filterMode = FilterMode.Point, wrapMode = TextureWrapMode.Clamp, name = name + " colours" };
+            var glow = new Texture2D(width, Tile, TextureFormat.RGBA32, false) { filterMode = FilterMode.Point, wrapMode = TextureWrapMode.Clamp, name = name + " glow" };
             bool anyGlow = false;
             for (int i = 0; i < _palette.Count; i++)
             {
-                for (int t = 0; t < Tones; t++)
+                var c = _palette[i].Color;
+                anyGlow |= _palette[i].Glow;
+                for (int v = 0; v < Tile; v++)
+                for (int u = 0; u < Tile; u++)
                 {
-                    var c = _palette[i].Color;
-                    float b = ToneBrightness[t];
+                    float b = ToneBrightness[ToneAt(u, v)];
                     var tinted = new Color(Mathf.Clamp01(c.r * b), Mathf.Clamp01(c.g * b), Mathf.Clamp01(c.b * b), 1f);
-                    colours.SetPixel(i * Tones + t, 0, tinted);
-                    glow.SetPixel(i * Tones + t, 0, _palette[i].Glow ? tinted : Color.black);
-                    anyGlow |= _palette[i].Glow;
+                    colours.SetPixel(i * Tile + u, v, tinted);
+                    glow.SetPixel(i * Tile + u, v, _palette[i].Glow ? tinted : Color.black);
                 }
             }
             colours.Apply();

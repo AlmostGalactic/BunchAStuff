@@ -32,7 +32,7 @@ namespace BunchAStuff
         private static readonly List<string> Report = new();
         private static readonly List<GameObject> Spawned = new();
         private static int _passed, _failed;
-        private static bool _quit, _started, _clothesOnly;
+        private static bool _quit, _started, _clothesOnly, _demo, _duelOnly, _insideOnly, _content, _meleeOnly, _bruiseOnly, _thumb;
         private static string FlagPath => Path.Combine(MelonEnvironment.UserDataDirectory, "BunchAStuff.selftest");
         private static string LogPath => Path.Combine(MelonEnvironment.UserDataDirectory, "BunchAStuff.selftest.log");
 
@@ -43,6 +43,13 @@ namespace BunchAStuff
             string flag = File.ReadAllText(FlagPath);
             _quit = flag.IndexOf("quit", StringComparison.OrdinalIgnoreCase) >= 0;
             _clothesOnly = flag.IndexOf("clothes", StringComparison.OrdinalIgnoreCase) >= 0;
+            _insideOnly = flag.IndexOf("inside", StringComparison.OrdinalIgnoreCase) >= 0;
+            _meleeOnly = flag.IndexOf("melee", StringComparison.OrdinalIgnoreCase) >= 0;
+            _bruiseOnly = flag.IndexOf("bruise", StringComparison.OrdinalIgnoreCase) >= 0;
+            _thumb = flag.IndexOf("thumb", StringComparison.OrdinalIgnoreCase) >= 0;
+            _content = _meleeOnly || flag.IndexOf("content", StringComparison.OrdinalIgnoreCase) >= 0;
+            _duelOnly = _insideOnly || flag.IndexOf("duel", StringComparison.OrdinalIgnoreCase) >= 0;
+            _demo = _duelOnly || flag.IndexOf("demo", StringComparison.OrdinalIgnoreCase) >= 0;
             Log("Enabled; the Yard loads from the main menu.");
             GameEvents.MainMenuEntered += () =>
             {
@@ -85,6 +92,67 @@ namespace BunchAStuff
             for (float end = Now() + 30f; !Application.isFocused && Now() < end;)
                 yield return null;
             Check("The game has focus for real input", Application.isFocused);
+            if (_thumb)
+            {
+                // A brawl of dressed people in front of the camera, a sledgehammer in hand: for the mod's picture.
+                Creatures.DeleteAll();
+                var right = Vector3.Cross(Vector3.up, LocalPlayer.Forward).normalized;
+                var crowd = new List<AbstractCreature>();
+                foreach (var (ahead, across) in new[] { (3.2f, -0.5f), (3.2f, 0.5f), (4.6f, -1.8f), (4.6f, -0.9f), (4.6f, 1.0f), (4.6f, 1.9f) })
+                {
+                    foreach (var step in SpawnHuman(LocalPlayer.GetPointInFront(ahead) + right * across, c => crowd.Add(c)))
+                        yield return step;
+                }
+                foreach (var person in crowd)
+                    Clothes.Dress(person);
+                for (float end = Now() + 15f; Clothes.Busy && Now() < end;)
+                    yield return null;
+                var hammer = Melee.All.First(g => g.Name == "Sledgehammer");
+                int slot = Enumerable.Range(0, Toolbar.SlotCount).Where(n => Toolbar.CanChange(n) && Toolbar.IsEmpty(n)).DefaultIfEmpty(Toolbar.SlotCount - 1).First();
+                Toolbar.Put(hammer.Item, slot);
+                Toolbar.Select(slot);
+                Fights.EveryoneFights();
+                yield return Wait(4f);
+                for (int i = 1; i <= 12; i++)
+                {
+                    Shot("thumb-" + i);
+                    yield return Wait(1.5f);
+                }
+                yield break;
+            }
+            if (_bruiseOnly)
+            {
+                // The same spot hit again and again: it should darken each time, then split open.
+                Creatures.DeleteAll();
+                AbstractCreature person = null;
+                foreach (var step in SpawnHuman(LocalPlayer.GetPointInFront(2f), c => person = c))
+                    yield return step;
+                Hang(person, 1.4f);
+                var chest = person.GetLimb(HumanoidNodeTagValue.Spine);
+                for (int i = 1; i <= 6; i++)
+                {
+                    // Two spots side by side, close enough for their bruises to overlap.
+                    var side = Vector3.Cross(Vector3.up, LocalPlayer.Forward).normalized * (i % 2 == 0 ? 0.12f : -0.12f);
+                    var spot = chest.GetPosition() - LocalPlayer.Forward * 0.13f - Vector3.up * 0.05f + side;
+                    Bruises.Add(chest, spot, -LocalPlayer.Forward, 0.7f);
+                    yield return Wait(2.5f);
+                    Shot("bruise-hit-" + i);
+                    yield return Wait(1f);
+                }
+                yield break;
+            }
+            if (_content)
+            {
+                foreach (var step in Content())
+                    yield return step;
+                yield break;
+            }
+            if (_demo)
+            {
+                foreach (var step in Demo())
+                    yield return step;
+                yield break;
+            }
             if (_clothesOnly)
             {
                 foreach (var step in ClothesTests())
@@ -891,6 +959,272 @@ namespace BunchAStuff
             Fights.StopAll();
             Creatures.DeleteAll();
             yield return Wait(0.5f);
+        }
+
+        // ------------------------------------------------------------ demo
+
+        // A crowd of dressed people fighting, with frame times logged: for judging performance and looks by eye.
+        private static IEnumerable Demo()
+        {
+            var people = new List<AbstractCreature>();
+            var right = Vector3.Cross(Vector3.up, LocalPlayer.Forward).normalized;
+            for (int i = 0; i < (_duelOnly ? 0 : 10); i++)
+            {
+                var at = LocalPlayer.GetPointInFront(5f + (i / 5) * 3f) + right * ((i % 5) - 2f) * 2f;
+                foreach (var step in SpawnHuman(at, c => people.Add(c)))
+                    yield return step;
+            }
+            if (!_duelOnly)
+            {
+                foreach (var step in Frames("10 people undressed", 5f))
+                    yield return step;
+                foreach (var person in people)
+                    Clothes.Dress(person);
+                for (float end = Now() + 20f; Clothes.Busy && Now() < end;)
+                    yield return null;
+                Log($"Clothes: {Clothes.Worn} pieces, {Clothes.Vertices} vertices, {Clothes.Materials} materials");
+                foreach (var step in Frames("10 people dressed, standing", 5f))
+                    yield return step;
+                Shot("demo-dressed");
+                yield return Wait(1.5f);
+                Fights.EveryoneFights();
+                for (int round = 1; round <= 4; round++)
+                {
+                    foreach (var step in Frames($"10 fighting, {round * 5} s", 5f))
+                        yield return step;
+                }
+                Shot("demo-crowd");
+                Log(FightStats());
+                Fights.StopAll();
+                Creatures.DeleteAll();
+                yield return Wait(2f);
+            }
+
+            if (!_insideOnly)
+            {
+                // One on one, close up, with nobody else about.
+                Creatures.DeleteAll();
+                yield return Wait(1f);
+                AbstractCreature a = null, b = null;
+                foreach (var step in SpawnHuman(LocalPlayer.GetPointInFront(4.5f) - right * 0.7f, c => a = c))
+                    yield return step;
+                foreach (var step in SpawnHuman(LocalPlayer.GetPointInFront(4.5f) + right * 0.7f, c => b = c))
+                    yield return step;
+                Clothes.Dress(b);
+                for (float end = Now() + 10f; Clothes.Busy && Now() < end;)
+                    yield return null;
+                Fights.Start(a, out _);
+                for (int round = 1; round <= 30; round++)
+                {
+                    yield return Wait(2f);
+                    Shot("demo-duel-" + round);
+                    Log($"duel {round * 2} s: {FightStats()}, A {Describe(a)}, B {Describe(b)}");
+                }
+                Fights.StopAll();
+                Creatures.DeleteAll();
+                yield return Wait(2f);
+            }
+
+            // The models, drawn with joined faces: the terminal's tabs and a gun in hand.
+            if (_insideOnly)
+            {
+                var terminal = GameServices.TryGet<Il2CppServices.UI.ITerminalItemsService>();
+                Inventory.OpenTerminal();
+                yield return Wait(1f);
+                foreach (var tab in new[] { "Guns", "Syringes" })
+                {
+                    var category = Inventory.ItemsIn(tab).FirstOrDefault()?.Data?.Category;
+                    if (category != null)
+                        terminal?.SetCategory(category);
+                    yield return Wait(1f);
+                    Shot("demo-tab-" + tab.ToLowerInvariant());
+                    yield return Wait(1.5f);
+                }
+                Inventory.CloseTerminal();
+                yield return Wait(0.5f);
+                var gun = Guns.All.FirstOrDefault(g => g.Name == "Barrow-12");
+                int slot = Enumerable.Range(0, Toolbar.SlotCount).Where(n => Toolbar.CanChange(n) && Toolbar.IsEmpty(n)).DefaultIfEmpty(Toolbar.SlotCount - 1).First();
+                if (gun?.Item != null && Toolbar.Put(gun.Item, slot) && Toolbar.Select(slot))
+                {
+                    yield return Wait(1.5f);
+                    Shot("demo-held");
+                    yield return Wait(1.5f);
+                    Toolbar.Select(0);
+                }
+            }
+
+            // Blood inside: a body opened up by a rocket, held still in front of the camera.
+            AbstractCreature open = null;
+            foreach (var step in SpawnHuman(LocalPlayer.GetPointInFront(3f), c => open = c))
+                yield return step;
+            Hang(open, 1.6f);
+            yield return Wait(0.5f);
+            // A burst of rifle rounds into the chest and a leg, from just in front: the game's own wounds and blood.
+            var chest = open.GetLimb(HumanoidNodeTagValue.Spine);
+            var thigh = open.GetLimb(HumanoidNodeTagValue.LeftLeg);
+            for (int i = 0; i < 12; i++)
+            {
+                var aim = (i % 3 == 2 && thigh != null ? thigh : chest).GetPosition() + UnityEngine.Random.insideUnitSphere * 0.06f;
+                var from = aim - LocalPlayer.Forward * 0.6f;
+                FruktSharedLibrary.Combat.Bullets.Launch(from, (aim - from).normalized, FruktSharedLibrary.Combat.Bullets.Caliber.Rifle);
+                yield return Wait(0.08f);
+            }
+            yield return Wait(5f);
+            Shot("demo-inside-1");
+            yield return Wait(6f);
+            Shot("demo-inside-2");
+            yield return Wait(1.5f);
+        }
+
+        // The melee weapons, grenades and new syringes, each tried once, with what they did logged.
+        private static IEnumerable Content()
+        {
+            Creatures.DeleteAll();
+            var terminal = GameServices.TryGet<Il2CppServices.UI.ITerminalItemsService>();
+            Inventory.OpenTerminal();
+            yield return Wait(1f);
+            foreach (var tab in new[] { "Melee", "Grenades", "Syringes" })
+            {
+                var category = Inventory.ItemsIn(tab).FirstOrDefault()?.Data?.Category;
+                if (category != null)
+                    terminal?.SetCategory(category);
+                yield return Wait(1f);
+                Shot("content-tab-" + tab.ToLowerInvariant());
+                yield return Wait(1.5f);
+            }
+            Inventory.CloseTerminal();
+            yield return Wait(0.5f);
+            int slot = Enumerable.Range(0, Toolbar.SlotCount).Where(n => Toolbar.CanChange(n) && Toolbar.IsEmpty(n)).DefaultIfEmpty(Toolbar.SlotCount - 1).First();
+
+            // A wound sent straight to a chest, the way the blades do it.
+            {
+                AbstractCreature person = null;
+                foreach (var step in SpawnHuman(LocalPlayer.GetPointInFront(1.8f), c => person = c))
+                    yield return step;
+                var chest = person.GetLimb(HumanoidNodeTagValue.Spine);
+                var front = chest.GetPosition() - LocalPlayer.Forward * 0.1f;
+                var down = Vector3.Cross(LocalPlayer.Forward, Vector3.Cross(Vector3.up, LocalPlayer.Forward).normalized).normalized;
+                var slash = new List<(Vector3, int, float)>();
+                for (int i = -5; i <= 5; i++)
+                {
+                    slash.Add((front + down * (i * 0.03f) + LocalPlayer.Forward * 0.03f, 6, 160f));
+                    slash.Add((front + down * (i * 0.03f) + LocalPlayer.Forward * 0.09f, 4, 160f));
+                }
+                bool sent = Injuries.Wound(chest, slash, LocalPlayer.Forward);
+                Injuries.Stab(chest, front + Vector3.up * 0.15f, LocalPlayer.Forward, 0.16f);
+                yield return Wait(2f);
+                Shot("content-wound-direct");
+                yield return Wait(1.5f);
+                Log($"Direct wound sent {sent}, chest wholeness {chest.GetWholeness():0}%");
+                Creatures.DeleteAll();
+                yield return Wait(0.5f);
+            }
+
+            foreach (var weapon in Melee.All.ToList())
+            {
+                AbstractCreature person = null;
+                foreach (var step in SpawnHuman(LocalPlayer.GetPointInFront(1.5f), c => person = c))
+                    yield return step;
+                Toolbar.Put(weapon.Item, slot);
+                Toolbar.Select(slot);
+                yield return Wait(1f);
+                for (int i = 0; i < 3; i++)
+                {
+                    weapon.TryFire();
+                    yield return Wait(0.12f);
+                    if (i == 1)
+                        Shot("content-swing-" + weapon.Name.ToLowerInvariant().Replace(' ', '-'));
+                    yield return Wait(1.2f);
+                }
+                Log($"{weapon.Name}: {Describe(person)}, wholeness {(person.IsValid() ? person.GetLimbs().Average(l => l.GetWholeness()) : 0):0}%, " +
+                    $"limbs {(person.IsValid() ? person.GetLimbCount() : 0)}");
+                Shot("content-after-" + weapon.Name.ToLowerInvariant().Replace(' ', '-'));
+                yield return Wait(1.5f);
+                Creatures.DeleteAll();
+                yield return Wait(0.5f);
+            }
+
+            if (_meleeOnly)
+                yield break;
+            foreach (var grenade in Grenades.All)
+            {
+                var targets = new List<AbstractCreature>();
+                for (int i = 0; i < 3; i++)
+                {
+                    foreach (var step in SpawnHuman(LocalPlayer.GetPointInFront(7f) + Vector3.Cross(Vector3.up, LocalPlayer.Forward).normalized * (i - 1) * 1.2f, c => targets.Add(c)))
+                        yield return step;
+                }
+                Toolbar.Put(grenade.Item, slot);
+                Toolbar.Select(slot);
+                yield return Wait(0.8f);
+                grenade.TryFire();
+                yield return Wait(3.6f);
+                Shot("content-" + grenade.Name.ToLowerInvariant().Replace(' ', '-'));
+                yield return Wait(2f);
+                Log($"{grenade.Name}: " + string.Join("; ", targets.Select(Describe)));
+                Creatures.DeleteAll();
+                yield return Wait(0.5f);
+            }
+            Toolbar.Select(0);
+
+            foreach (var kind in Syringes.All.Where(k => k.Name is "Poison Syringe" or "Blood Thinner Syringe" or "Strength Syringe"
+                         or "Paralysis Syringe" or "Berserk Syringe" or "Bone Breaker Syringe"))
+            {
+                AbstractCreature person = null, other = null;
+                foreach (var step in SpawnHuman(LocalPlayer.GetPointInFront(4f), c => person = c))
+                    yield return step;
+                if (kind.Name == "Berserk Syringe")
+                {
+                    foreach (var step in SpawnHuman(LocalPlayer.GetPointInFront(4f) + Vector3.Cross(Vector3.up, LocalPlayer.Forward).normalized * 1.5f, c => other = c))
+                        yield return step;
+                }
+                Syringes.Inject(kind, person.GetLimb(HumanoidNodeTagValue.Spine) ?? person.GetRootLimb());
+                yield return Wait(kind.Name == "Paralysis Syringe" ? 20f : 9f);
+                Shot("content-" + kind.Name.ToLowerInvariant().Replace(' ', '-'));
+                yield return Wait(1.5f);
+                Log($"{kind.Name}: {Describe(person)}");
+                Creatures.DeleteAll();
+                Fights.StopAll();
+                yield return Wait(0.5f);
+            }
+        }
+
+        private static string FightStats()
+            => $"thrown {Fights.PunchesThrown}, landed {Fights.PunchesLanded}, blocked {Fights.PunchesBlocked}, missed {Fights.PunchesMissed}, " +
+               $"knockouts {Fights.KnockOuts}, bleeding inside {Injuries.BleedingCount}, closing/planted/circling " +
+               $"{Fights.SecondsClosing:0}/{Fights.SecondsPlanted:0}/{Fights.SecondsCircling:0} s, down {Fights.SecondsDown:0} s";
+
+        private static string Describe(AbstractCreature c)
+        {
+            if (c == null || !c.IsValid())
+                return "gone";
+            if (!c.IsLiving())
+                return "lifeless" + $" mind {c.GetParameterValue<Il2CppLVA.Creatures.Parameters.CognitionLevel>() ?? -1:0}" + (c.HasPuppeteer() ? "" : " NO-PUPPETEER");
+            var broken = c.GetLimbs().Where(Injuries.IsBroken).Select(l => l.GetHumanPart()?.ToString()).ToList();
+            float capacity = c.GetBloodCapacity();
+            return $"blood {(capacity > 0 ? c.GetBlood() / capacity * 100f : 0):0}%" + (Injuries.IsKnockedOut(c) ? " OUT" : "") + (Fights.IsDown(c) ? " lying down" : "")
+                   + (broken.Count > 0 ? " broken " + string.Join("/", broken) : "") + (Fights.IsFighting(c) ? " fighting" : "")
+                   + $" head {Injuries.DamageOf(c.GetLimb(HumanoidNodeTagValue.Head)):0.0}"
+                   + $" mind {c.GetParameterValue<Il2CppLVA.Creatures.Parameters.CognitionLevel>() ?? -1:0} muscle {c.GetParameterValue<Il2CppLVA.Creatures.Parameters.GeneralMuscleForce>() ?? -1:0}"
+                   + (c.HasPuppeteer() ? "" : " NO-PUPPETEER");
+        }
+
+        private static IEnumerable Frames(string what, float seconds)
+        {
+            double clothes = Clothes.SpentMs;
+            int clothesFrames = Clothes.SpentFrames;
+            float worst = 0f, total = 0f;
+            int frames = 0;
+            for (float end = Now() + seconds; Now() < end;)
+            {
+                yield return null;
+                worst = Mathf.Max(worst, Time.unscaledDeltaTime);
+                total += Time.unscaledDeltaTime;
+                frames++;
+            }
+            int n = Math.Max(1, Clothes.SpentFrames - clothesFrames);
+            Log($"{what}: {frames / Mathf.Max(0.001f, total):0} fps, average frame {total / Math.Max(1, frames) * 1000f:0.0} ms, " +
+                $"worst {worst * 1000f:0.0} ms, clothes {(Clothes.SpentMs - clothes) / n:0.00} ms a frame");
         }
 
         // ------------------------------------------------------------ helpers

@@ -23,6 +23,8 @@ namespace BunchAStuff
         private static string _throwBindText;
         private static MelonPreferences_Entry<bool> _bruising;
         private static MelonPreferences_Entry<float> _bruiseSeconds;
+        private static MelonPreferences_Entry<bool> _injuries;
+        private static MelonPreferences_Entry<bool> _bloodInside;
         private static MelonPreferences_Entry<bool> _showTeamTags;
         private static MelonPreferences_Entry<string> _customTeams;
         private static MelonPreferences_Entry<bool> _teamsSeeded;
@@ -44,6 +46,10 @@ namespace BunchAStuff
                 "People bruise where they're punched or hit something hard.");
             _bruiseSeconds = _prefs.CreateEntry("BruiseMinutes", 20f, "Bruises last (minutes)",
                 "How long a bruise takes to heal: red, then deep purple, then green and yellow, then gone.", false, false, new ValueRange<float>(1f, 120f));
+            _injuries = _prefs.CreateEntry("Injuries", true, "Injuries",
+                "Limbs that keep getting hit bleed inside, split open and break, and blows to the head knock people out.");
+            _bloodInside = _prefs.CreateEntry("BloodInside", true, "Blood inside wounds",
+                "The game's blood goes into wounds and onto what a cut opens up, not only onto the skin.");
             _showTeamTags = _prefs.CreateEntry("ShowTeamTags", true, "Show team names",
                 "Show each person's team over their head.");
             // Teams the player made, as "Name|RRGGBB;Name|RRGGBB". Edited on the mod's page, not here.
@@ -57,6 +63,8 @@ namespace BunchAStuff
         internal static float PunchForce => _punchForce.Value;
         internal static bool FightBack => _fightBack.Value;
         internal static bool Bruising => _bruising.Value;
+        internal static bool Injuries => _injuries.Value;
+        internal static bool BloodInside => _bloodInside.Value;
 
         /// <summary>The key that throws a held syringe (none if it's been cleared).</summary>
         internal static KeyBind ThrowKey

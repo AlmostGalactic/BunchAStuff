@@ -57,7 +57,12 @@ namespace BunchAStuff
             internal float Lost;
             internal float NextLook;
             internal bool CutOff;
+            // How many voxels its body had at the last check: a check that finds the same number has nothing to do.
+            internal int BodyVoxels = -1;
         }
+
+        // One material per outfit, shared by all its pieces and everyone wearing it, so they draw together.
+        private static readonly Dictionary<string, Material> OutfitMaterials = new();
 
         // A body's voxels as cells of a piece's grid: one flag per cell, the body itself only (not the cloth round it).
         private sealed class BodyGrid
@@ -149,6 +154,10 @@ namespace BunchAStuff
         /// <summary>Cloth voxels on cut-off pieces that aren't on the person any more (for the self-test).</summary>
         internal static int ClothCutOff => Pieces.Where(p => p.CutOff).Sum(p => p.V.Count);
 
+        /// <summary>Vertices in all the clothes' meshes, and materials made for them (for the self-test).</summary>
+        internal static int Vertices => Pieces.Where(p => p.Filter.Exists() && p.Filter.sharedMesh != null).Sum(p => p.Filter.sharedMesh.vertexCount);
+        internal static int Materials => OutfitMaterials.Count;
+
         /// <summary>Pieces of clothing being worn (for the self-test).</summary>
         internal static int Worn => Pieces.Count;
 
@@ -206,6 +215,7 @@ namespace BunchAStuff
 
         private static void UpdateInner()
         {
+            SpawnerIcon.Update(_spawner);
             if (_spawner != null && _spawner.IsHeld)
                 _heldAt = Time.time;
             if ((_look += Time.deltaTime) >= LookEvery)
@@ -227,8 +237,8 @@ namespace BunchAStuff
                     if (!piece.Stained || Clock.Elapsed.TotalMilliseconds >= BudgetMs)
                         continue;
                     piece.Stained = false;
-                    if (piece.Object.Exists())
-                        Rebuild(piece);
+                    if (piece.Object.Exists() && piece.Filter.Exists() && piece.Filter.sharedMesh != null)
+                        piece.Filter.sharedMesh = piece.V.BuildMesh(piece.Name, piece.Filter.sharedMesh);
                 }
             }
         }
@@ -476,7 +486,14 @@ namespace BunchAStuff
             piece.Filter = go.AddComponent<MeshFilter>();
             piece.Filter.sharedMesh = voxels.BuildMesh(name);
             var renderer = go.AddComponent<MeshRenderer>();
-            renderer.sharedMaterial = voxels.BuildMaterial(name);
+            // Outfits can come in different colours, so the colours are the key, in the order the palette has them.
+            string colours = string.Concat(job.Outfit.Colours.Select(c => c.Key + ColorUtility.ToHtmlStringRGB(c.Value)));
+            if (!OutfitMaterials.TryGetValue(colours, out var material) || material == null || material.WasCollected)
+                OutfitMaterials[colours] = material = voxels.BuildMaterial(Tag + job.Outfit.Name);
+            renderer.sharedMaterial = material;
+            // The body under it already throws the same shadow.
+            renderer.shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.Off;
+            piece.BodyVoxels = CountVoxels(piece.Body);
             return piece;
         }
 
@@ -685,6 +702,11 @@ namespace BunchAStuff
         {
             float wholeness = piece.Limb != null ? piece.Limb.GetWholeness() : 0f;
             piece.Wholeness = wholeness;
+            // The game touches a body's voxels far more often than it takes any away: nothing to do if none went.
+            int voxels = CountVoxels(piece.Body);
+            if (voxels == piece.BodyVoxels && piece.Lost <= 0f && (!piece.IsHat || wholeness >= 85f))
+                return false;
+            piece.BodyVoxels = voxels;
             var body = BodyCellsOf(piece, piece.Body);
             if (piece.IsHat)
             {
@@ -881,7 +903,10 @@ namespace BunchAStuff
             voxels.HideWhere(BodyCellsOf(split, onto).Has);
             split.Filter = go.AddComponent<MeshFilter>();
             split.Filter.sharedMesh = voxels.BuildMesh(piece.Name);
-            go.AddComponent<MeshRenderer>().sharedMaterial = piece.Object.GetComponent<MeshRenderer>().sharedMaterial;
+            var renderer = go.AddComponent<MeshRenderer>();
+            renderer.sharedMaterial = piece.Object.GetComponent<MeshRenderer>().sharedMaterial;
+            renderer.shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.Off;
+            split.BodyVoxels = CountVoxels(onto);
             Pieces.Add(split);
             CutOff++;
         }
@@ -1070,6 +1095,20 @@ namespace BunchAStuff
                 FruktLog.Debug("Reading voxels from memory failed: " + e.Message);
                 return false;
             }
+        }
+
+        // The voxels still there in a body, read straight from memory: cheap next to working out where each one is.
+        private static int CountVoxels(VoxelMesh mesh)
+        {
+            if (mesh == null || !ReadVoxels(mesh, out var size, out var enabled))
+                return -1;
+            int count = 0, total = size.x * size.y * size.z;
+            for (int i = 0; i < total; i++)
+            {
+                if (enabled[i])
+                    count++;
+            }
+            return count;
         }
 
         private static Vector3Int GridOf(VoxelMesh mesh)
